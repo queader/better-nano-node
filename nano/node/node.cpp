@@ -634,7 +634,7 @@ void nano::node::stop ()
 	// work pool is not stopped on purpose due to testing setup
 
 	// Stop the IO runner last
-	runner.abort ();
+	runner.abort (); // TODO: Remove this
 	runner.join ();
 	debug_assert (io_ctx_shared.use_count () == 1); // Node should be the last user of the io_context
 }

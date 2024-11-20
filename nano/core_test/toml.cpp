@@ -306,7 +306,6 @@ TEST (toml_config, daemon_config_deserialize_defaults)
 	ASSERT_EQ (conf.node.preconfigured_representatives, defaults.node.preconfigured_representatives);
 	ASSERT_EQ (conf.node.receive_minimum, defaults.node.receive_minimum);
 	ASSERT_EQ (conf.node.signature_checker_threads, defaults.node.signature_checker_threads);
-	ASSERT_EQ (conf.node.tcp_io_timeout, defaults.node.tcp_io_timeout);
 	ASSERT_EQ (conf.node.unchecked_cutoff_time, defaults.node.unchecked_cutoff_time);
 	ASSERT_EQ (conf.node.use_memory_pools, defaults.node.use_memory_pools);
 	ASSERT_EQ (conf.node.vote_generator_delay, defaults.node.vote_generator_delay);
@@ -465,7 +464,6 @@ TEST (toml_config, daemon_config_deserialize_no_defaults)
 	preconfigured_representatives = ["nano_3arg3asgtigae3xckabaaewkx3bzsh7nwz7jkmjos79ihyaxwphhm6qgjps4"]
 	receive_minimum = "999"
 	signature_checker_threads = 999
-	tcp_io_timeout = 999
 	unchecked_cutoff_time = 999
 	use_memory_pools = false
 	vote_generator_delay = 999
@@ -725,7 +723,6 @@ TEST (toml_config, daemon_config_deserialize_no_defaults)
 	ASSERT_NE (conf.node.preconfigured_representatives, defaults.node.preconfigured_representatives);
 	ASSERT_NE (conf.node.receive_minimum, defaults.node.receive_minimum);
 	ASSERT_NE (conf.node.signature_checker_threads, defaults.node.signature_checker_threads);
-	ASSERT_NE (conf.node.tcp_io_timeout, defaults.node.tcp_io_timeout);
 	ASSERT_NE (conf.node.unchecked_cutoff_time, defaults.node.unchecked_cutoff_time);
 	ASSERT_NE (conf.node.use_memory_pools, defaults.node.use_memory_pools);
 	ASSERT_NE (conf.node.vote_generator_delay, defaults.node.vote_generator_delay);

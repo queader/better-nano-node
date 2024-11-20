@@ -18,7 +18,7 @@ nano::transport::tcp_server::tcp_server (std::shared_ptr<nano::transport::tcp_so
 		std::make_shared<nano::transport::message_deserializer> (node_a->network_params.network, node_a->network.filter, node_a->block_uniquer, node_a->vote_uniquer,
 		[socket_l = socket] (std::shared_ptr<std::vector<uint8_t>> const & data_a, size_t size_a, std::function<void (boost::system::error_code const &, std::size_t)> callback_a) {
 			debug_assert (socket_l != nullptr);
-			socket_l->read_impl (data_a, size_a, callback_a);
+			socket_l->async_read (data_a, size_a, callback_a);
 		})
 	}
 {
@@ -43,7 +43,7 @@ void nano::transport::tcp_server::start ()
 	// Set remote_endpoint
 	if (remote_endpoint.port () == 0)
 	{
-		remote_endpoint = socket->remote_endpoint ();
+		remote_endpoint = socket->get_remote_endpoint ();
 		debug_assert (remote_endpoint.port () != 0);
 	}
 
@@ -62,7 +62,7 @@ void nano::transport::tcp_server::stop ()
 {
 	if (!stopped.exchange (true))
 	{
-		socket->close ();
+		socket->close_async ();
 	}
 }
 
@@ -553,7 +553,7 @@ void nano::transport::tcp_server::timeout ()
 	{
 		node->logger.debug (nano::log::type::tcp_server, "Closing TCP server due to timeout ({})", fmt::streamed (remote_endpoint));
 
-		socket->close ();
+		socket->close_async ();
 	}
 }
 
@@ -642,10 +642,10 @@ bool nano::transport::tcp_server::is_undefined_connection () const
 
 bool nano::transport::tcp_server::is_bootstrap_connection () const
 {
-	return socket->is_bootstrap_connection ();
+	return socket->type () == nano::transport::socket_type::bootstrap;
 }
 
 bool nano::transport::tcp_server::is_realtime_connection () const
 {
-	return socket->is_realtime_connection ();
+	return socket->type () == nano::transport::socket_type::realtime;
 }

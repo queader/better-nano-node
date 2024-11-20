@@ -33,6 +33,8 @@ enum class type
 	ipc,
 	tcp,
 	tcp_server,
+	tcp_socket,
+	tcp_socket_timeout,
 	tcp_channel,
 	tcp_channel_queued,
 	tcp_channel_send,
@@ -172,6 +174,7 @@ enum class detail
 	queued,
 	error,
 	failed,
+	close,
 
 	// processing queue
 	queue,
@@ -342,9 +345,17 @@ enum class detail
 	// tcp
 	tcp_silent_connection_drop,
 	tcp_io_timeout_drop,
+	tcp_connect_success,
 	tcp_connect_error,
 	tcp_read_error,
 	tcp_write_error,
+
+	// tcp_socket
+	unhealthy,
+	already_closed,
+	timeout_receive,
+	timeout_send,
+	timeout_connect,
 
 	// tcp_listener
 	accept_success,

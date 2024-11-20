@@ -121,7 +121,6 @@ nano::error nano::node_config::serialize_toml (nano::tomlconfig & toml) const
 	toml.put ("vote_minimum", vote_minimum.to_string_dec (), "Local representatives do not vote if the delegated weight is under this threshold. Saves on system resources.\ntype:string,amount,raw");
 	toml.put ("vote_generator_delay", vote_generator_delay.count (), "Delay before votes are sent to allow for efficient bundling of hashes in votes.\ntype:milliseconds");
 	toml.put ("unchecked_cutoff_time", unchecked_cutoff_time.count (), "Number of seconds before deleting an unchecked entry.\nWarning: lower values (e.g., 3600 seconds, or 1 hour) may result in unsuccessful bootstraps, especially a bootstrap from scratch.\ntype:seconds");
-	toml.put ("tcp_io_timeout", tcp_io_timeout.count (), "Timeout for TCP connect-, read- and write operations.\nWarning: a low value (e.g., below 5 seconds) may result in TCP connections failing.\ntype:seconds");
 	toml.put ("pow_sleep_interval", pow_sleep_interval.count (), "Time to sleep between batch work generation attempts. Reduces max CPU usage at the expense of a longer generation time.\ntype:nanoseconds");
 	toml.put ("external_address", external_address, "The external address of this node (NAT). If not set, the node will request this information via UPnP.\ntype:string,ip");
 	toml.put ("external_port", external_port, "The external port number of this node (NAT). Only used if external_address is set.\ntype:uint16");
@@ -510,10 +509,6 @@ nano::error nano::node_config::deserialize_toml (nano::tomlconfig & toml)
 		auto unchecked_cutoff_time_l = static_cast<unsigned long> (unchecked_cutoff_time.count ());
 		toml.get ("unchecked_cutoff_time", unchecked_cutoff_time_l);
 		unchecked_cutoff_time = std::chrono::seconds (unchecked_cutoff_time_l);
-
-		auto tcp_io_timeout_l = static_cast<unsigned long> (tcp_io_timeout.count ());
-		toml.get ("tcp_io_timeout", tcp_io_timeout_l);
-		tcp_io_timeout = std::chrono::seconds (tcp_io_timeout_l);
 
 		if (toml.has_key ("peering_port"))
 		{

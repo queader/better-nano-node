@@ -44,8 +44,6 @@ private:
 
 class tcp_channel final : public nano::transport::channel, public std::enable_shared_from_this<tcp_channel>
 {
-	friend class nano::transport::tcp_channels;
-
 public:
 	tcp_channel (nano::node &, std::shared_ptr<nano::transport::tcp_socket>);
 	~tcp_channel () override;
