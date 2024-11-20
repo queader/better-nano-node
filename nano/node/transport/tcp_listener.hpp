@@ -79,7 +79,7 @@ private:
 	asio::awaitable<void> wait_available_slots () const;
 
 	void run_cleanup ();
-	void cleanup ();
+	void cleanup (nano::unique_lock<nano::mutex> &);
 	void timeout ();
 
 	enum class accept_result
@@ -101,7 +101,7 @@ private:
 	};
 
 	accept_return accept_one (asio::ip::tcp::socket, connection_type);
-	accept_result check_limits (asio::ip::address const & ip, connection_type);
+	accept_result check_limits (asio::ip::address const & ip, connection_type) const;
 	asio::awaitable<asio::ip::tcp::socket> accept_socket ();
 
 	size_t count_per_type (connection_type) const;
@@ -114,8 +114,8 @@ private:
 	{
 		connection_type type;
 		asio::ip::tcp::endpoint endpoint;
-		std::weak_ptr<tcp_socket> socket;
-		std::weak_ptr<tcp_server> server;
+		std::shared_ptr<tcp_socket> socket;
+		std::shared_ptr<tcp_server> server;
 
 		asio::ip::address address () const
 		{

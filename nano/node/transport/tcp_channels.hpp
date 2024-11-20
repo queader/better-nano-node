@@ -58,6 +58,10 @@ public:
 	// Connection start
 	bool start_tcp (nano::endpoint const &);
 
+	std::deque<std::shared_ptr<tcp_socket>> all_sockets () const;
+	std::deque<std::shared_ptr<tcp_server>> all_servers () const;
+	std::deque<std::shared_ptr<tcp_channel>> all_channels () const;
+
 	nano::container_info container_info () const;
 
 private: // Dependencies

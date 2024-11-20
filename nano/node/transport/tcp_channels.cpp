@@ -1,6 +1,8 @@
 #include <nano/node/node.hpp>
 #include <nano/node/transport/tcp_channels.hpp>
 
+#include <ranges>
+
 /*
  * tcp_channels
  */
@@ -308,9 +310,9 @@ bool nano::transport::tcp_channels::track_reachout (nano::endpoint const & endpo
 
 void nano::transport::tcp_channels::purge (std::chrono::steady_clock::time_point cutoff_deadline)
 {
-	nano::lock_guard<nano::mutex> lock{ mutex };
+	auto channels_l = all_channels ();
 
-	auto should_close = [this, cutoff_deadline] (auto const & channel) {
+	auto should_close = [this, cutoff_deadline] (std::shared_ptr<tcp_channel> const & channel) {
 		// Remove channels that haven't successfully sent a message within the cutoff time
 		if (auto last = channel->get_last_packet_sent (); last < cutoff_deadline)
 		{
@@ -332,27 +334,33 @@ void nano::transport::tcp_channels::purge (std::chrono::steady_clock::time_point
 		return false;
 	};
 
-	for (auto const & entry : channels)
+	// Close stale channels without holding the mutex
+	for (auto const & channel : channels_l)
 	{
-		if (should_close (entry.channel))
+		if (should_close (channel))
 		{
-			entry.channel->close ();
+			channel->close ();
 		}
 	}
 
-	erase_if (channels, [this] (auto const & entry) {
-		if (!entry.channel->alive ())
-		{
-			node.logger.debug (nano::log::type::tcp_channels, "Removing dead channel: {}", entry.channel->to_string ());
-			entry.channel->close ();
-			return true; // Erase
-		}
-		return false;
-	});
+	nano::unique_lock<nano::mutex> lock{ mutex };
 
 	// Remove keepalive attempt tracking for attempts older than cutoff
 	auto attempts_cutoff (attempts.get<last_attempt_tag> ().lower_bound (cutoff_deadline));
 	attempts.get<last_attempt_tag> ().erase (attempts.get<last_attempt_tag> ().begin (), attempts_cutoff);
+
+	// Erase dead channels from list, but close them outside of the lock
+	auto erased = nano::erase_if (channels, [this] (auto const & entry) {
+		return !entry.channel->alive ();
+	});
+
+	lock.unlock ();
+
+	for (auto const & entry : erased)
+	{
+		node.logger.debug (nano::log::type::tcp_channels, "Removing dead channel: {}", entry.channel->to_string ());
+		entry.channel->close ();
+	}
 }
 
 void nano::transport::tcp_channels::keepalive ()
@@ -420,6 +428,27 @@ std::deque<std::shared_ptr<nano::transport::channel>> nano::transport::tcp_chann
 bool nano::transport::tcp_channels::start_tcp (nano::endpoint const & endpoint)
 {
 	return node.tcp_listener.connect (endpoint.address (), endpoint.port ());
+}
+
+auto nano::transport::tcp_channels::all_sockets () const -> std::deque<std::shared_ptr<tcp_socket>>
+{
+	nano::lock_guard<nano::mutex> lock{ mutex };
+	auto r = channels | std::views::transform ([] (auto const & entry) { return entry.socket; });
+	return { r.begin (), r.end () };
+}
+
+auto nano::transport::tcp_channels::all_servers () const -> std::deque<std::shared_ptr<tcp_server>>
+{
+	nano::lock_guard<nano::mutex> lock{ mutex };
+	auto r = channels | std::views::transform ([] (auto const & entry) { return entry.server; });
+	return { r.begin (), r.end () };
+}
+
+auto nano::transport::tcp_channels::all_channels () const -> std::deque<std::shared_ptr<tcp_channel>>
+{
+	nano::lock_guard<nano::mutex> lock{ mutex };
+	auto r = channels | std::views::transform ([] (auto const & entry) { return entry.channel; });
+	return { r.begin (), r.end () };
 }
 
 nano::container_info nano::transport::tcp_channels::container_info () const
