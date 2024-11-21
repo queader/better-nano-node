@@ -58,8 +58,8 @@ public:
 	size_t realtime_count () const;
 	size_t bootstrap_count () const;
 
-	std::vector<std::shared_ptr<tcp_socket>> sockets () const;
-	std::vector<std::shared_ptr<tcp_server>> servers () const;
+	std::deque<std::shared_ptr<tcp_socket>> all_sockets () const;
+	std::deque<std::shared_ptr<tcp_server>> all_servers () const;
 
 	nano::container_info container_info () const;
 

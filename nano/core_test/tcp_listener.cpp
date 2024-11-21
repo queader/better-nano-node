@@ -48,11 +48,11 @@ TEST (tcp_listener, max_connections)
 
 	// create space for one socket and fill the connections table again
 	{
-		auto sockets1 = node->tcp_listener.sockets ();
+		auto sockets1 = node->tcp_listener.all_sockets ();
 		ASSERT_EQ (sockets1.size (), 2);
 		sockets1[0]->close ();
 	}
-	ASSERT_TIMELY_EQ (10s, node->tcp_listener.sockets ().size (), 1);
+	ASSERT_TIMELY_EQ (10s, node->tcp_listener.all_sockets ().size (), 1);
 
 	auto client4 = std::make_shared<nano::transport::tcp_socket> (*node);
 	client4->async_connect (node->network.endpoint (), connect_handler);
@@ -66,12 +66,12 @@ TEST (tcp_listener, max_connections)
 
 	// close all existing sockets and fill the connections table again
 	{
-		auto sockets2 = node->tcp_listener.sockets ();
+		auto sockets2 = node->tcp_listener.all_sockets ();
 		ASSERT_EQ (sockets2.size (), 2);
 		sockets2[0]->close ();
 		sockets2[1]->close ();
 	}
-	ASSERT_TIMELY_EQ (10s, node->tcp_listener.sockets ().size (), 0);
+	ASSERT_TIMELY_EQ (10s, node->tcp_listener.all_sockets ().size (), 0);
 
 	auto client6 = std::make_shared<nano::transport::tcp_socket> (*node);
 	client6->async_connect (node->network.endpoint (), connect_handler);

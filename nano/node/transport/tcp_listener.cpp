@@ -584,7 +584,7 @@ asio::ip::tcp::endpoint nano::transport::tcp_listener::endpoint () const
 	return { asio::ip::address_v6::loopback (), local.port () };
 }
 
-auto nano::transport::tcp_listener::sockets () const -> std::vector<std::shared_ptr<tcp_socket>>
+auto nano::transport::tcp_listener::all_sockets () const -> std::deque<std::shared_ptr<tcp_socket>>
 {
 	nano::lock_guard<nano::mutex> lock{ mutex };
 	auto r = connections
@@ -593,7 +593,7 @@ auto nano::transport::tcp_listener::sockets () const -> std::vector<std::shared_
 	return { r.begin (), r.end () };
 }
 
-auto nano::transport::tcp_listener::servers () const -> std::vector<std::shared_ptr<tcp_server>>
+auto nano::transport::tcp_listener::all_servers () const -> std::deque<std::shared_ptr<tcp_server>>
 {
 	nano::lock_guard<nano::mutex> lock{ mutex };
 	auto r = connections
