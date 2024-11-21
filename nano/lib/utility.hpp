@@ -43,16 +43,17 @@ void transform_if (InputIt first, InputIt last, OutputIt dest, Pred pred, Func t
 }
 
 /**
- * Erase elements from container when predicate returns true
- * TODO: Use `std::erase_if` in c++20
+ * Erase elements from container when predicate returns true and elements erased
  */
 template <class Container, class Pred>
-void erase_if (Container & container, Pred pred)
+std::deque<typename Container::value_type> erase_if (Container & container, Pred pred)
 {
+	std::deque<typename Container::value_type> erased;
 	for (auto it = container.begin (), end = container.end (); it != end;)
 	{
 		if (pred (*it))
 		{
+			erased.push_back (*it);
 			it = container.erase (it);
 		}
 		else
@@ -60,6 +61,7 @@ void erase_if (Container & container, Pred pred)
 			++it;
 		}
 	}
+	return erased;
 }
 
 /** Safe narrowing cast which silences warnings and asserts on data loss in debug builds. This is optimized away. */
