@@ -255,15 +255,19 @@ public:
 
 	bool ready () const
 	{
-		release_assert (future.valid ());
-		return future.wait_for (std::chrono::seconds{ 0 }) == std::future_status::ready;
+		return !future.valid () || future.wait_for (std::chrono::seconds{ 0 }) == std::future_status::ready;
 	}
 
-	void join ()
+	bool ongoing () const
+	{
+		return joinable () && !ready ();
+	}
+
+	void join () const
 	{
 		release_assert (future.valid ());
 		future.wait ();
-		future = {};
+		// future = {};
 	}
 
 	void cancel ()

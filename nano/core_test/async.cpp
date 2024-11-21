@@ -101,16 +101,18 @@ TEST (async, task)
 	WAIT (50ms);
 	ASSERT_TRUE (task.joinable ());
 	ASSERT_FALSE (task.ready ());
+	ASSERT_TRUE (task.ongoing ());
 
 	WAIT (1s);
 
 	// Task completed, not yet joined
 	ASSERT_TRUE (task.joinable ());
 	ASSERT_TRUE (task.ready ());
+	ASSERT_FALSE (task.ongoing ());
 
 	task.join ();
 
-	ASSERT_FALSE (task.joinable ());
+	ASSERT_FALSE (task.ongoing ());
 }
 
 TEST (async, task_cancel)

@@ -40,7 +40,7 @@ nano::transport::tcp_socket::tcp_socket (nano::node & node_a, asio::ip::tcp::soc
 nano::transport::tcp_socket::~tcp_socket ()
 {
 	close ();
-	release_assert (!task.joinable ());
+	release_assert (task.ready ());
 }
 
 void nano::transport::tcp_socket::close ()
@@ -125,7 +125,7 @@ void nano::transport::tcp_socket::start ()
 
 void nano::transport::tcp_socket::stop ()
 {
-	if (task.joinable ())
+	if (task.ongoing ())
 	{
 		// Node context must be running to gracefully stop async tasks
 		debug_assert (!node.io_ctx.stopped ());
