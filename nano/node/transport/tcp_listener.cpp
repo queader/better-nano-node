@@ -203,18 +203,34 @@ void nano::transport::tcp_listener::timeout ()
 {
 	debug_assert (!mutex.try_lock ());
 
-	auto const cutoff = std::chrono::steady_clock::now () - config.connect_timeout;
+	auto const connect_cutoff = std::chrono::steady_clock::now () - config.connect_timeout;
+	auto const handshake_cutoff = std::chrono::steady_clock::now () - config.handshake_timeout;
 
 	// Cancel timed out attempts
 	for (auto & attempt : attempts)
 	{
-		if (!attempt.task.ready () && attempt.start < cutoff)
+		if (!attempt.task.ready () && attempt.start < connect_cutoff)
 		{
-			attempt.task.cancel (); // Cancel is non-blocking and will return immediately, safe to call under lock
-
 			stats.inc (nano::stat::type::tcp_listener, nano::stat::detail::attempt_timeout);
 			logger.debug (nano::log::type::tcp_listener, "Connection attempt timed out: {} (started {}s ago)",
-			fmt::streamed (attempt.endpoint), nano::log::seconds_delta (attempt.start));
+			fmt::streamed (attempt.endpoint),
+			nano::log::seconds_delta (attempt.start));
+
+			attempt.task.cancel (); // Cancel is non-blocking and will return immediately, safe to call under lock
+		}
+	}
+
+	// Cancel too long handshakes
+	for (auto & connection : connections)
+	{
+		if (connection.socket->type () == nano::transport::socket_type::undefined && connection.socket->get_time_connected () < handshake_cutoff)
+		{
+			stats.inc (nano::stat::type::tcp_listener, nano::stat::detail::handshake_timeout);
+			logger.debug (nano::log::type::tcp_listener, "Handshake timed out: {} (connected {}s ago)",
+			fmt::streamed (connection.endpoint),
+			nano::log::seconds_delta (connection.socket->get_time_connected ()));
+
+			connection.socket->close_async (); // Schedule socket close, this is non-blocking, safe to call under lock
 		}
 	}
 }
