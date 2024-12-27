@@ -17,7 +17,12 @@
  */
 
 nano::transport::tcp_socket::tcp_socket (nano::node & node_a, socket_endpoint endpoint_type_a) :
-	tcp_socket{ node_a, boost::asio::ip::tcp::socket{ node_a.io_ctx }, endpoint_type_a }
+	node_w{ node_a.shared () },
+	node{ node_a },
+	strand{ node_a.io_ctx.get_executor () },
+	task{ strand },
+	raw_socket{ node_a.io_ctx.get_executor () },
+	endpoint_type_m{ endpoint_type_a }
 {
 	start ();
 }
