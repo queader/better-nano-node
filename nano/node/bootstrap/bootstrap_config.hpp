@@ -4,6 +4,8 @@
 #include <nano/lib/timer.hpp>
 #include <nano/node/bootstrap/bootstrap_server.hpp>
 
+using namespace std::chrono_literals;
+
 namespace nano
 {
 class tomlconfig;
@@ -19,6 +21,7 @@ public:
 	std::size_t priorities_max{ 256 * 1024 };
 	std::size_t blocking_max{ 256 * 1024 };
 	std::chrono::milliseconds cooldown{ 1000 * 3 };
+	std::chrono::seconds blocking_decay{ 15min };
 };
 
 class frontier_scan_config final

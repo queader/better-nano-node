@@ -11,6 +11,7 @@ nano::error nano::account_sets_config::deserialize (nano::tomlconfig & toml)
 	toml.get ("priorities_max", priorities_max);
 	toml.get ("blocking_max", blocking_max);
 	toml.get_duration ("cooldown", cooldown);
+	toml.get_duration ("blocking_decay", blocking_decay);
 
 	return toml.get_error ();
 }
@@ -21,6 +22,7 @@ nano::error nano::account_sets_config::serialize (nano::tomlconfig & toml) const
 	toml.put ("priorities_max", priorities_max, "Cutoff size limit for the priority list.\ntype:uint64");
 	toml.put ("blocking_max", blocking_max, "Cutoff size limit for the blocked accounts from the priority list.\ntype:uint64");
 	toml.put ("cooldown", cooldown.count (), "Waiting time for an account to become available.\ntype:milliseconds");
+	toml.put ("blocking_decay", blocking_decay.count (), "Time to wait before removing an account from the blocked list.\ntype:seconds");
 
 	return toml.get_error ();
 }

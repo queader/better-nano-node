@@ -13,6 +13,7 @@
 #include <boost/multi_index/sequenced_index.hpp>
 #include <boost/multi_index_container.hpp>
 
+#include <chrono>
 #include <random>
 
 namespace mi = boost::multi_index;
@@ -38,7 +39,7 @@ public:
 	void priority_set (nano::account const & account, double priority = priority_initial);
 	void priority_erase (nano::account const & account);
 
-	void block (nano::account const & account, nano::block_hash const & dependency);
+	void block (nano::account const & account, nano::block_hash const & dependency, std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now ());
 	void unblock (nano::account const & account, std::optional<nano::block_hash> const & hash = std::nullopt);
 
 	void timestamp_set (nano::account const & account);
@@ -53,6 +54,11 @@ public:
 	 * Should be called periodically to reinsert missing dependencies into the priority set
 	 */
 	void sync_dependencies ();
+
+	/**
+	 * Should be called periodically to remove old entries from the blocking set
+	 */
+	size_t decay_blocking (std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now ());
 
 	struct priority_result
 	{
@@ -92,8 +98,9 @@ private:
 	{
 		nano::account account;
 		double priority;
+
 		unsigned fails{ 0 };
-		std::chrono::steady_clock::time_point timestamp{};
+		std::chrono::steady_clock::time_point timestamp{}; // Use for cooldown, set to current time when this account is sampled
 		id_t id{ generate_id () }; // Uniformly distributed, used for random querying
 	};
 
@@ -101,7 +108,9 @@ private:
 	{
 		nano::account account;
 		nano::block_hash dependency;
-		nano::account dependency_account{ 0 };
+		std::chrono::steady_clock::time_point timestamp; // Used for decaying old entries
+
+		nano::account dependency_account{ 0 }; // Account that contains the dependency block, fetched via a background dependency walker
 		id_t id{ generate_id () }; // Uniformly distributed, used for random querying
 	};
 
@@ -112,6 +121,7 @@ private:
 	class tag_dependency {};
 	class tag_dependency_account {};
 	class tag_priority {};
+	class tag_timestamp {};
 
 	// Tracks the ongoing account priorities
 	using ordered_priorities = boost::multi_index_container<priority_entry,
@@ -137,7 +147,9 @@ private:
 		mi::ordered_non_unique<mi::tag<tag_dependency_account>,
 			mi::member<blocking_entry, nano::account, &blocking_entry::dependency_account>>,
 		mi::ordered_unique<mi::tag<tag_id>,
-			mi::member<blocking_entry, id_t, &blocking_entry::id>>
+			mi::member<blocking_entry, id_t, &blocking_entry::id>>,
+		mi::ordered_non_unique<mi::tag<tag_timestamp>,
+			mi::member<blocking_entry, std::chrono::steady_clock::time_point, &blocking_entry::timestamp>>
 	>>;
 	// clang-format on
 

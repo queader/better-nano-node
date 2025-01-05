@@ -117,7 +117,7 @@ void nano::bootstrap::account_sets::priority_erase (nano::account const & accoun
 	}
 }
 
-void nano::bootstrap::account_sets::block (nano::account const & account, nano::block_hash const & dependency)
+void nano::bootstrap::account_sets::block (nano::account const & account, nano::block_hash const & dependency, std::chrono::steady_clock::time_point now)
 {
 	debug_assert (!account.is_zero ());
 
@@ -128,7 +128,7 @@ void nano::bootstrap::account_sets::block (nano::account const & account, nano::
 		stats.inc (nano::stat::type::bootstrap_account_sets, nano::stat::detail::block);
 
 		debug_assert (blocking.get<tag_account> ().count (account) == 0);
-		blocking.get<tag_account> ().insert ({ account, dependency });
+		blocking.get<tag_account> ().insert ({ account, dependency, now });
 		trim_overflow ();
 	}
 	else
@@ -309,6 +309,32 @@ void nano::bootstrap::account_sets::sync_dependencies ()
 	}
 
 	trim_overflow ();
+}
+
+size_t nano::bootstrap::account_sets::decay_blocking (std::chrono::steady_clock::time_point now)
+{
+	stats.inc (nano::stat::type::bootstrap_account_sets, nano::stat::detail::decay_blocking);
+
+	auto const cutoff = now - config.blocking_decay;
+
+	// Erase all entries that are older than the cutoff
+	size_t result = 0;
+	for (auto it = blocking.get<tag_timestamp> ().begin (); it != blocking.get<tag_timestamp> ().end ();)
+	{
+		if (it->timestamp <= cutoff)
+		{
+			it = blocking.get<tag_timestamp> ().erase (it);
+			++result;
+		}
+		else
+		{
+			break; // Entries are sorted by timestamp, no need to continue
+		}
+	}
+
+	stats.add (nano::stat::type::bootstrap_account_sets, nano::stat::detail::blocking_decayed, result);
+
+	return result;
 }
 
 bool nano::bootstrap::account_sets::blocked (nano::account const & account) const
