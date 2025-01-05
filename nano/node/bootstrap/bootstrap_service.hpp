@@ -200,6 +200,7 @@ private:
 	nano::rate_limiter frontiers_limiter;
 
 	nano::interval sync_dependencies_interval;
+	nano::interval decay_blocking_interval;
 
 	bool stopped{ false };
 	mutable nano::mutex mutex;

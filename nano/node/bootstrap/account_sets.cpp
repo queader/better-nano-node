@@ -311,6 +311,28 @@ void nano::bootstrap::account_sets::sync_dependencies ()
 	trim_overflow ();
 }
 
+size_t nano::bootstrap::account_sets::decay_blocking (std::chrono::steady_clock::time_point now)
+{
+	stats.inc (nano::stat::type::bootstrap_account_sets, nano::stat::detail::decay_blocking);
+
+	auto const cutoff = now - config.blocking_decay;
+
+	// Erase all entries that are older than the cutoff
+	size_t result = 0;
+	for (auto it = blocking.get<tag_timestamp> ().begin (); it != blocking.get<tag_timestamp> ().end ();)
+	{
+		if (it->timestamp < cutoff)
+		{
+			it = blocking.get<tag_timestamp> ().erase (it);
+		}
+		else
+		{
+			break; // Entries are sorted by timestamp, no need to continue
+		}
+	}
+	return result;
+}
+
 bool nano::bootstrap::account_sets::blocked (nano::account const & account) const
 {
 	return blocking.get<tag_account> ().contains (account);
