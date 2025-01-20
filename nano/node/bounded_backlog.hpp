@@ -117,6 +117,8 @@ public:
 	size_t bucket_threshold () const;
 	bool contains (nano::block_hash const &) const;
 
+	bool check (nano::amount const &, nano::priority_timestamp const &);
+
 	nano::container_info container_info () const;
 
 private: // Dependencies

@@ -183,10 +183,14 @@ public:
 	bool error{ false };
 };
 
+/*
+ * ledger_processor
+ */
+
 class ledger_processor : public nano::mutable_block_visitor
 {
 public:
-	ledger_processor (nano::ledger &, nano::secure::write_transaction const &);
+	ledger_processor (nano::ledger &, nano::secure::write_transaction const &, nano::ledger::backlog_filter_t const &);
 	virtual ~ledger_processor () = default;
 	void send_block (nano::send_block &) override;
 	void receive_block (nano::receive_block &) override;
@@ -197,11 +201,19 @@ public:
 	void epoch_block_impl (nano::state_block &);
 	nano::ledger & ledger;
 	nano::secure::write_transaction const & transaction;
-	nano::block_status result;
+	nano::ledger::backlog_filter_t const & backlog_filter;
+	nano::block_status result{ nano::block_status::invalid };
 
 private:
 	bool validate_epoch_block (nano::state_block const & block_a);
 };
+
+ledger_processor::ledger_processor (nano::ledger & ledger_a, nano::secure::write_transaction const & transaction_a, nano::ledger::backlog_filter_t const & backlog_filter_a) :
+	ledger (ledger_a),
+	transaction (transaction_a),
+	backlog_filter (backlog_filter_a)
+{
+}
 
 // Returns true if this block which has an epoch link is correctly formed.
 bool ledger_processor::validate_epoch_block (nano::state_block const & block_a)
@@ -335,34 +347,43 @@ void ledger_processor::state_block_impl (nano::state_block & block_a)
 					result = ledger.constants.work.difficulty (block_a) >= ledger.constants.work.threshold (block_a.work_version (), block_details) ? nano::block_status::progress : nano::block_status::insufficient_work; // Does this block have sufficient work? (Malformed)
 					if (result == nano::block_status::progress)
 					{
-						ledger.stats.inc (nano::stat::type::ledger, nano::stat::detail::state_block);
+						// Set sideband
 						block_a.sideband_set (nano::block_sideband (block_a.hashables.account /* unused */, 0, 0 /* unused */, info.block_count + 1, nano::seconds_since_epoch (), block_details, source_epoch));
-						ledger.store.block.put (transaction, hash, block_a);
 
-						if (!info.head.is_zero ())
-						{
-							// Move existing representation & add in amount delta
-							ledger.cache.rep_weights.representation_add_dual (transaction, info.representative, 0 - info.balance.number (), block_a.hashables.representative, block_a.hashables.balance.number ());
-						}
-						else
-						{
-							// Add in amount delta only
-							ledger.cache.rep_weights.representation_add (transaction, block_a.hashables.representative, block_a.hashables.balance.number ());
-						}
+						// Check if block would exceed the backlog limit (needs sideband)
+						result = backlog_filter (ledger.block_priority (transaction, block_a)) ? nano::block_status::progress : nano::block_status::backlog_overflow;
 
-						if (is_send)
+						if (result == nano::block_status::progress)
 						{
-							nano::pending_key key (block_a.hashables.link.as_account (), hash);
-							nano::pending_info info (block_a.hashables.account, amount.number (), epoch);
-							ledger.store.pending.put (transaction, key, info);
-						}
-						else if (!block_a.hashables.link.is_zero ())
-						{
-							ledger.store.pending.del (transaction, nano::pending_key (block_a.hashables.account, block_a.hashables.link.as_block_hash ()));
-						}
+							ledger.stats.inc (nano::stat::type::ledger, nano::stat::detail::state_block);
 
-						nano::account_info new_info (hash, block_a.hashables.representative, info.open_block.is_zero () ? hash : info.open_block, block_a.hashables.balance, nano::seconds_since_epoch (), info.block_count + 1, epoch);
-						ledger.update_account (transaction, block_a.hashables.account, info, new_info);
+							ledger.store.block.put (transaction, hash, block_a);
+
+							if (!info.head.is_zero ())
+							{
+								// Move existing representation & add in amount delta
+								ledger.cache.rep_weights.representation_add_dual (transaction, info.representative, 0 - info.balance.number (), block_a.hashables.representative, block_a.hashables.balance.number ());
+							}
+							else
+							{
+								// Add in amount delta only
+								ledger.cache.rep_weights.representation_add (transaction, block_a.hashables.representative, block_a.hashables.balance.number ());
+							}
+
+							if (is_send)
+							{
+								nano::pending_key key (block_a.hashables.link.as_account (), hash);
+								nano::pending_info info (block_a.hashables.account, amount.number (), epoch);
+								ledger.store.pending.put (transaction, key, info);
+							}
+							else if (!block_a.hashables.link.is_zero ())
+							{
+								ledger.store.pending.del (transaction, nano::pending_key (block_a.hashables.account, block_a.hashables.link.as_block_hash ()));
+							}
+
+							nano::account_info new_info (hash, block_a.hashables.representative, info.open_block.is_zero () ? hash : info.open_block, block_a.hashables.balance, nano::seconds_since_epoch (), info.block_count + 1, epoch);
+							ledger.update_account (transaction, block_a.hashables.account, info, new_info);
+						}
 					}
 				}
 			}
@@ -424,11 +445,20 @@ void ledger_processor::epoch_block_impl (nano::state_block & block_a)
 							result = ledger.constants.work.difficulty (block_a) >= ledger.constants.work.threshold (block_a.work_version (), block_details) ? nano::block_status::progress : nano::block_status::insufficient_work; // Does this block have sufficient work? (Malformed)
 							if (result == nano::block_status::progress)
 							{
-								ledger.stats.inc (nano::stat::type::ledger, nano::stat::detail::epoch_block);
+								// Set sideband
 								block_a.sideband_set (nano::block_sideband (block_a.hashables.account /* unused */, 0, 0 /* unused */, info.block_count + 1, nano::seconds_since_epoch (), block_details, nano::epoch::epoch_0 /* unused */));
-								ledger.store.block.put (transaction, hash, block_a);
-								nano::account_info new_info (hash, block_a.hashables.representative, info.open_block.is_zero () ? hash : info.open_block, info.balance, nano::seconds_since_epoch (), info.block_count + 1, epoch);
-								ledger.update_account (transaction, block_a.hashables.account, info, new_info);
+
+								// Check if block would exceed the backlog limit (needs sideband)
+								result = backlog_filter (ledger.block_priority (transaction, block_a)) ? nano::block_status::progress : nano::block_status::backlog_overflow;
+
+								if (result == nano::block_status::progress)
+								{
+									ledger.stats.inc (nano::stat::type::ledger, nano::stat::detail::epoch_block);
+
+									ledger.store.block.put (transaction, hash, block_a);
+									nano::account_info new_info (hash, block_a.hashables.representative, info.open_block.is_zero () ? hash : info.open_block, info.balance, nano::seconds_since_epoch (), info.block_count + 1, epoch);
+									ledger.update_account (transaction, block_a.hashables.account, info, new_info);
+								}
 							}
 						}
 					}
@@ -467,13 +497,23 @@ void ledger_processor::change_block (nano::change_block & block_a)
 						if (result == nano::block_status::progress)
 						{
 							debug_assert (!validate_message (account, hash, block_a.signature));
+
+							// Set sideband
 							block_a.sideband_set (nano::block_sideband (account, 0, info->balance, info->block_count + 1, nano::seconds_since_epoch (), block_details, nano::epoch::epoch_0 /* unused */));
-							ledger.store.block.put (transaction, hash, block_a);
-							auto balance = previous->balance ();
-							ledger.cache.rep_weights.representation_add_dual (transaction, block_a.hashables.representative, balance.number (), info->representative, 0 - balance.number ());
-							nano::account_info new_info (hash, block_a.hashables.representative, info->open_block, info->balance, nano::seconds_since_epoch (), info->block_count + 1, nano::epoch::epoch_0);
-							ledger.update_account (transaction, account, *info, new_info);
-							ledger.stats.inc (nano::stat::type::ledger, nano::stat::detail::change);
+
+							// Check if block would exceed the backlog limit (needs sideband)
+							result = backlog_filter (ledger.block_priority (transaction, block_a)) ? nano::block_status::progress : nano::block_status::backlog_overflow;
+
+							if (result == nano::block_status::progress)
+							{
+								ledger.stats.inc (nano::stat::type::ledger, nano::stat::detail::change);
+
+								ledger.store.block.put (transaction, hash, block_a);
+								auto balance = previous->balance ();
+								ledger.cache.rep_weights.representation_add_dual (transaction, block_a.hashables.representative, balance.number (), info->representative, 0 - balance.number ());
+								nano::account_info new_info (hash, block_a.hashables.representative, info->open_block, info->balance, nano::seconds_since_epoch (), info->block_count + 1, nano::epoch::epoch_0);
+								ledger.update_account (transaction, account, *info, new_info);
+							}
 						}
 					}
 				}
@@ -514,14 +554,23 @@ void ledger_processor::send_block (nano::send_block & block_a)
 							result = info->balance.number () >= block_a.hashables.balance.number () ? nano::block_status::progress : nano::block_status::negative_spend; // Is this trying to spend a negative amount (Malicious)
 							if (result == nano::block_status::progress)
 							{
-								auto amount (info->balance.number () - block_a.hashables.balance.number ());
-								ledger.cache.rep_weights.representation_add (transaction, info->representative, 0 - amount);
+								// Set sideband
 								block_a.sideband_set (nano::block_sideband (account, 0, block_a.hashables.balance /* unused */, info->block_count + 1, nano::seconds_since_epoch (), block_details, nano::epoch::epoch_0 /* unused */));
-								ledger.store.block.put (transaction, hash, block_a);
-								nano::account_info new_info (hash, info->representative, info->open_block, block_a.hashables.balance, nano::seconds_since_epoch (), info->block_count + 1, nano::epoch::epoch_0);
-								ledger.update_account (transaction, account, *info, new_info);
-								ledger.store.pending.put (transaction, nano::pending_key (block_a.hashables.destination, hash), { account, amount, nano::epoch::epoch_0 });
-								ledger.stats.inc (nano::stat::type::ledger, nano::stat::detail::send);
+
+								// Check if block would exceed the backlog limit (needs sideband)
+								result = backlog_filter (ledger.block_priority (transaction, block_a)) ? nano::block_status::progress : nano::block_status::backlog_overflow;
+
+								if (result == nano::block_status::progress)
+								{
+									ledger.stats.inc (nano::stat::type::ledger, nano::stat::detail::send);
+
+									auto amount (info->balance.number () - block_a.hashables.balance.number ());
+									ledger.cache.rep_weights.representation_add (transaction, info->representative, 0 - amount);
+									ledger.store.block.put (transaction, hash, block_a);
+									nano::account_info new_info (hash, info->representative, info->open_block, block_a.hashables.balance, nano::seconds_since_epoch (), info->block_count + 1, nano::epoch::epoch_0);
+									ledger.update_account (transaction, account, *info, new_info);
+									ledger.store.pending.put (transaction, nano::pending_key (block_a.hashables.destination, hash), { account, amount, nano::epoch::epoch_0 });
+								}
 							}
 						}
 					}
@@ -574,13 +623,23 @@ void ledger_processor::receive_block (nano::receive_block & block_a)
 										if (result == nano::block_status::progress)
 										{
 											auto new_balance (info->balance.number () + pending.value ().amount.number ());
-											ledger.store.pending.del (transaction, key);
+
+											// Set sideband
 											block_a.sideband_set (nano::block_sideband (account, 0, new_balance, info->block_count + 1, nano::seconds_since_epoch (), block_details, nano::epoch::epoch_0 /* unused */));
-											ledger.store.block.put (transaction, hash, block_a);
-											nano::account_info new_info (hash, info->representative, info->open_block, new_balance, nano::seconds_since_epoch (), info->block_count + 1, nano::epoch::epoch_0);
-											ledger.update_account (transaction, account, *info, new_info);
-											ledger.cache.rep_weights.representation_add (transaction, info->representative, pending.value ().amount.number ());
-											ledger.stats.inc (nano::stat::type::ledger, nano::stat::detail::receive);
+
+											// Check if block would exceed the backlog limit (needs sideband)
+											result = backlog_filter (ledger.block_priority (transaction, block_a)) ? nano::block_status::progress : nano::block_status::backlog_overflow;
+
+											if (result == nano::block_status::progress)
+											{
+												ledger.stats.inc (nano::stat::type::ledger, nano::stat::detail::receive);
+
+												ledger.store.pending.del (transaction, key);
+												ledger.store.block.put (transaction, hash, block_a);
+												nano::account_info new_info (hash, info->representative, info->open_block, new_balance, nano::seconds_since_epoch (), info->block_count + 1, nano::epoch::epoch_0);
+												ledger.update_account (transaction, account, *info, new_info);
+												ledger.cache.rep_weights.representation_add (transaction, info->representative, pending.value ().amount.number ());
+											}
 										}
 									}
 								}
@@ -626,13 +685,22 @@ void ledger_processor::open_block (nano::open_block & block_a)
 								result = ledger.constants.work.difficulty (block_a) >= ledger.constants.work.threshold (block_a.work_version (), block_details) ? nano::block_status::progress : nano::block_status::insufficient_work; // Does this block have sufficient work? (Malformed)
 								if (result == nano::block_status::progress)
 								{
-									ledger.store.pending.del (transaction, key);
+									// Set sideband
 									block_a.sideband_set (nano::block_sideband (block_a.hashables.account, 0, pending.value ().amount, 1, nano::seconds_since_epoch (), block_details, nano::epoch::epoch_0 /* unused */));
-									ledger.store.block.put (transaction, hash, block_a);
-									nano::account_info new_info (hash, block_a.representative_field ().value (), hash, pending.value ().amount.number (), nano::seconds_since_epoch (), 1, nano::epoch::epoch_0);
-									ledger.update_account (transaction, block_a.hashables.account, info, new_info);
-									ledger.cache.rep_weights.representation_add (transaction, block_a.representative_field ().value (), pending.value ().amount.number ());
-									ledger.stats.inc (nano::stat::type::ledger, nano::stat::detail::open);
+
+									// Check if block would exceed the backlog limit (needs sideband)
+									result = backlog_filter (ledger.block_priority (transaction, block_a)) ? nano::block_status::progress : nano::block_status::backlog_overflow;
+
+									if (result == nano::block_status::progress)
+									{
+										ledger.stats.inc (nano::stat::type::ledger, nano::stat::detail::open);
+
+										ledger.store.pending.del (transaction, key);
+										ledger.store.block.put (transaction, hash, block_a);
+										nano::account_info new_info (hash, block_a.representative_field ().value (), hash, pending.value ().amount.number (), nano::seconds_since_epoch (), 1, nano::epoch::epoch_0);
+										ledger.update_account (transaction, block_a.hashables.account, info, new_info);
+										ledger.cache.rep_weights.representation_add (transaction, block_a.representative_field ().value (), pending.value ().amount.number ());
+									}
 								}
 							}
 						}
@@ -643,11 +711,9 @@ void ledger_processor::open_block (nano::open_block & block_a)
 	}
 }
 
-ledger_processor::ledger_processor (nano::ledger & ledger_a, nano::secure::write_transaction const & transaction_a) :
-	ledger (ledger_a),
-	transaction (transaction_a)
-{
-}
+/*
+ * representative_visitor
+ */
 
 /**
  * Determine the representative for this block
@@ -712,6 +778,10 @@ void representative_visitor::state_block (nano::state_block const & block_a)
 	result = block_a.hash ();
 }
 } // namespace
+
+/*
+ * ledger
+ */
 
 nano::ledger::ledger (nano::store::component & store_a, nano::stats & stat_a, nano::ledger_constants & constants, nano::generate_cache_flags const & generate_cache_flags_a, nano::uint128_t min_rep_weight_a) :
 	constants{ constants },
@@ -790,6 +860,18 @@ void nano::ledger::initialize (nano::generate_cache_flags const & generate_cache
 
 	auto transaction (store.tx_begin_read ());
 	cache.pruned_count = store.pruned.count (transaction);
+}
+
+nano::block_status nano::ledger::process (secure::write_transaction const & transaction, std::shared_ptr<nano::block> block, backlog_filter_t filter)
+{
+	debug_assert (!constants.work.validate_entry (*block) || constants.genesis == nano::dev::genesis);
+	ledger_processor processor{ *this, transaction, filter };
+	block->visit (processor);
+	if (processor.result == nano::block_status::progress)
+	{
+		++cache.block_count;
+	}
+	return processor.result;
 }
 
 bool nano::ledger::unconfirmed_exists (secure::transaction const & transaction, nano::block_hash const & hash)
@@ -896,18 +978,6 @@ void nano::ledger::confirm_one (secure::write_transaction & transaction, nano::b
 	++cache.cemented_count;
 
 	stats.inc (nano::stat::type::confirmation_height, nano::stat::detail::blocks_confirmed);
-}
-
-nano::block_status nano::ledger::process (secure::write_transaction const & transaction_a, std::shared_ptr<nano::block> block_a)
-{
-	debug_assert (!constants.work.validate_entry (*block_a) || constants.genesis == nano::dev::genesis);
-	ledger_processor processor (*this, transaction_a);
-	block_a->visit (processor);
-	if (processor.result == nano::block_status::progress)
-	{
-		++cache.block_count;
-	}
-	return processor.result;
 }
 
 nano::block_hash nano::ledger::representative (secure::transaction const & transaction_a, nano::block_hash const & hash_a)

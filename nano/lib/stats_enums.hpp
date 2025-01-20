@@ -211,6 +211,7 @@ enum class detail
 	balance_mismatch,
 	representative_mismatch,
 	block_position,
+	backlog_overflow,
 
 	// block_processor
 	process_blocking,

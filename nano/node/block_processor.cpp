@@ -325,11 +325,14 @@ void nano::block_processor::process_batch (nano::unique_lock<nano::mutex> & lock
 	});
 }
 
-nano::block_status nano::block_processor::process_one (secure::write_transaction const & transaction_a, nano::block_context const & context, bool const forced_a)
+nano::block_status nano::block_processor::process_one (secure::write_transaction const & transaction, nano::block_context const & context, bool const forced)
 {
-	auto block = context.block;
+	auto const block = context.block;
 	auto const hash = block->hash ();
-	nano::block_status result = ledger.process (transaction_a, block);
+
+	nano::block_status const result = ledger.process (transaction, block, [this] (auto const & priority) {
+		return true; // TODO: Bounded backlog check
+	});
 
 	stats.inc (nano::stat::type::block_processor_result, to_stat_detail (result));
 	stats.inc (nano::stat::type::block_processor_source, to_stat_detail (context.source));
@@ -338,7 +341,7 @@ nano::block_status nano::block_processor::process_one (secure::write_transaction
 	nano::log::arg{ "result", result },
 	nano::log::arg{ "source", context.source },
 	nano::log::arg{ "arrival", nano::log::microseconds (context.arrival) },
-	nano::log::arg{ "forced", forced_a },
+	nano::log::arg{ "forced", forced },
 	nano::log::arg{ "block", block });
 
 	switch (result)
@@ -380,6 +383,10 @@ nano::block_status nano::block_processor::process_one (secure::write_transaction
 		case nano::block_status::old:
 		{
 			stats.inc (nano::stat::type::ledger, nano::stat::detail::old);
+			break;
+		}
+		case block_status::backlog_overflow:
+		{
 			break;
 		}
 		// These are unexpected and indicate erroneous/malicious behavior, log debug info to highlight the issue
@@ -429,6 +436,9 @@ nano::block_status nano::block_processor::process_one (secure::write_transaction
 			logger.debug (nano::log::type::block_processor, "Block has insufficient work: {}", hash);
 			break;
 		}
+		case block_status::invalid:
+			debug_assert (false, "should never happen");
+			break;
 	}
 	return result;
 }

@@ -62,7 +62,6 @@ public:
 	std::deque<std::shared_ptr<nano::block>> random_blocks (secure::transaction const &, size_t count) const;
 	std::optional<nano::pending_info> pending_info (secure::transaction const &, nano::pending_key const & key) const;
 	std::deque<std::shared_ptr<nano::block>> confirm (secure::write_transaction &, nano::block_hash const & hash, size_t max_blocks = 1024 * 128);
-	nano::block_status process (secure::write_transaction const &, std::shared_ptr<nano::block> block);
 	bool rollback (secure::write_transaction const &, nano::block_hash const &, std::deque<std::shared_ptr<nano::block>> & rollback_list);
 	bool rollback (secure::write_transaction const &, nano::block_hash const &);
 	void update_account (secure::write_transaction const &, nano::account const &, nano::account_info const &, nano::account_info const &);
@@ -90,6 +89,12 @@ public:
 	// Returned timestamp is the previous block timestamp or the current timestamp if there's no previous block
 	using block_priority_result = std::pair<nano::amount, nano::priority_timestamp>;
 	block_priority_result block_priority (secure::transaction const &, nano::block const &) const;
+
+	/*
+	 * Check and insert block into the ledger
+	 */
+	using backlog_filter_t = std::function<bool (block_priority_result const &)>;
+	nano::block_status process (secure::write_transaction const &, std::shared_ptr<nano::block> block, backlog_filter_t backlog_filter = /* allow all */ [] (auto const &) { return true; });
 
 	nano::container_info container_info () const;
 
