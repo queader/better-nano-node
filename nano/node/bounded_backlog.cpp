@@ -128,6 +128,23 @@ size_t nano::bounded_backlog::index_size () const
 	return index.size ();
 }
 
+bool nano::bounded_backlog::check (nano::amount const & priority_balance, nano::priority_timestamp const & priority_timestamp)
+{
+	auto const bucket_index = bucketing.bucket_index (priority_balance);
+
+	nano::lock_guard<nano::mutex> guard{ mutex };
+
+	// Always allow if the backlog is not full
+	if (index.size () < config.max_backlog)
+	{
+		return true; // Allow
+	}
+
+	// Backlog is full, allow only if the block is high priority within the bucket
+	auto position = index.check (bucket_index, priority_timestamp);
+	return position < bucket_threshold ();
+}
+
 void nano::bounded_backlog::activate (nano::secure::transaction & transaction, nano::account const & account, nano::account_info const & account_info, nano::confirmation_height_info const & conf_info)
 {
 	debug_assert (conf_info.frontier != account_info.head);
