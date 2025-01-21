@@ -7,6 +7,7 @@
 #include <nano/node/fair_queue.hpp>
 #include <nano/node/fwd.hpp>
 #include <nano/secure/common.hpp>
+#include <nano/secure/ledger.hpp>
 
 #include <chrono>
 #include <future>
@@ -61,6 +62,9 @@ public:
 	nano::container_info container_info () const;
 
 	std::atomic<bool> flushing{ false };
+
+public:
+	nano::ledger::backlog_filter_t backlog_filter{ [] (auto const &) { /* allow all by default */ return true; } };
 
 private: // Dependencies
 	block_processor_config const & config;

@@ -209,6 +209,11 @@ nano::node::node (std::shared_ptr<boost::asio::io_context> io_ctx_a, std::filesy
 		return ledger.weight (rep);
 	};
 
+	block_processor.backlog_filter = [this] (nano::ledger::block_priority_result const & priority) {
+		auto const [balance, timestamp] = priority;
+		return backlog.check (balance, timestamp);
+	};
+
 	// TODO: Hook this direclty in the schedulers
 	backlog_scan.batch_activated.add ([this] (auto const & batch) {
 		auto transaction = ledger.tx_begin_read ();

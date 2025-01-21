@@ -330,9 +330,7 @@ nano::block_status nano::block_processor::process_one (secure::write_transaction
 	auto const block = context.block;
 	auto const hash = block->hash ();
 
-	nano::block_status const result = ledger.process (transaction, block, [this] (auto const & priority) {
-		return true; // TODO: Bounded backlog check
-	});
+	nano::block_status const result = ledger.process (transaction, block, backlog_filter);
 
 	stats.inc (nano::stat::type::block_processor_result, to_stat_detail (result));
 	stats.inc (nano::stat::type::block_processor_source, to_stat_detail (context.source));
