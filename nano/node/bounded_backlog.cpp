@@ -13,7 +13,7 @@
 #include <nano/secure/ledger_set_confirmed.hpp>
 #include <nano/secure/transaction.hpp>
 
-nano::bounded_backlog::bounded_backlog (nano::node_config const & config_a, nano::node & node_a, nano::ledger & ledger_a, nano::ledger_notifications & ledger_notifications_a, nano::bucketing & bucketing_a, nano::backlog_scan & backlog_scan_a, nano::block_processor & block_processor_a, nano::confirming_set & confirming_set_a, nano::stats & stats_a, nano::logger & logger_a) :
+nano::bounded_backlog::bounded_backlog (nano::node_config const & config_a, nano::node & node_a, nano::ledger & ledger_a, nano::ledger_notifications & ledger_notifications_a, nano::bucketing & bucketing_a, nano::backlog_scan & backlog_scan_a, nano::confirming_set & confirming_set_a, nano::stats & stats_a, nano::logger & logger_a) :
 	config{ config_a },
 	node{ node_a },
 	ledger{ ledger_a },
