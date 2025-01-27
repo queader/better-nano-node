@@ -398,6 +398,8 @@ if(NOT WIN32)
 #            /usr/include
 #    )
 
+    message(STATUS "Searching for backtrace.h: ${CMAKE_EXTRA_GENERATOR_CXX_SYSTEM_INCLUDE_DIRS}")
+
     find_path(BACKTRACE_INCLUDE backtrace.h
             HINTS ${CMAKE_EXTRA_GENERATOR_CXX_SYSTEM_INCLUDE_DIRS})
     
