@@ -391,18 +391,23 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
 # Find libbacktrace first (Unix/Linux only)
 if(NOT WIN32)
-    find_path(BACKTRACE_INCLUDE_DIR
-        NAMES backtrace.h
-        PATHS
-            /usr/local/include
-            /usr/include
-    )
+#    find_path(BACKTRACE_INCLUDE_DIR
+#        NAMES backtrace.h
+#        PATHS
+#            /usr/local/include
+#            /usr/include
+#    )
+
+    find_path(BACKTRACE_INCLUDE backtrace.h
+            HINTS ${CMAKE_EXTRA_GENERATOR_CXX_SYSTEM_INCLUDE_DIRS})
     
-    if(BACKTRACE_INCLUDE_DIR)
+    if(BACKTRACE_INCLUDE)
         set(BACKTRACE_FOUND TRUE)
         # Most systems just need -lbacktrace
         set(BACKTRACE_LIBRARIES backtrace)
-        message(STATUS "Found backtrace.h at ${BACKTRACE_INCLUDE_DIR}")
+        message(STATUS "Found backtrace.h at ${BACKTRACE_INCLUDE}")
+        add_definitions(
+                -DBOOST_STACKTRACE_BACKTRACE_INCLUDE_FILE="${BACKTRACE_INCLUDE}/backtrace.h")
     endif()
 endif()
 
