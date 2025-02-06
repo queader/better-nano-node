@@ -31,6 +31,7 @@
 #include <nano/node/transport/tcp_listener.hpp>
 #include <nano/node/vote_cache.hpp>
 #include <nano/node/vote_processor.hpp>
+#include <nano/node/vote_rebroadcaster.hpp>
 #include <nano/node/websocketconfig.hpp>
 #include <nano/secure/common.hpp>
 #include <nano/secure/generate_cache_flags.hpp>
@@ -152,6 +153,7 @@ public:
 	nano::monitor_config monitor;
 	nano::backlog_scan_config backlog_scan;
 	nano::bounded_backlog_config bounded_backlog;
+	nano::vote_rebroadcaster_config vote_rebroadcaster;
 
 public:
 	/** Entry is ignored if it cannot be parsed as a valid address:port */

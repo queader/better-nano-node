@@ -27,6 +27,8 @@ nano::uint128_t const raw_ratio = nano::uint128_t ("1"); // 10^0
 using bucket_index = uint64_t;
 using priority_timestamp = uint64_t; // Priority within the bucket
 
+using vote_timestamp = uint64_t;
+
 class uint128_union
 {
 public:
@@ -590,6 +592,8 @@ template <>
 struct hash<::nano::uint512_union>;
 template <>
 struct hash<::nano::qualified_root>;
+template <>
+struct hash<::nano::signature>;
 }
 
 namespace boost
@@ -616,4 +620,6 @@ template <>
 struct hash<::nano::uint512_union>;
 template <>
 struct hash<::nano::qualified_root>;
+template <>
+struct hash<::nano::signature>;
 }

@@ -35,8 +35,11 @@ using namespace std::chrono_literals;
  */
 TEST (active_elections, confirm_election_by_request)
 {
-	nano::test::system system{};
-	auto & node1 = *system.add_node ();
+	nano::test::system system;
+	nano::node_config node_config1;
+	// Disable vote rebroadcasting to prevent node1 from actively sending votes to node2
+	node_config1.vote_rebroadcaster.enable = false;
+	auto & node1 = *system.add_node (node_config1);
 
 	nano::state_block_builder builder{};
 	auto send1 = builder

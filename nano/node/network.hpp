@@ -95,6 +95,9 @@ public:
 
 	nano::endpoint endpoint () const;
 
+	// Checks if we have enough channel capacity for the given traffic type
+	bool check_capacity (nano::transport::traffic_type, float scale = 1.0f) const;
+
 	size_t flood_message (nano::message const &, nano::transport::traffic_type, float scale = 1.0f) const;
 	size_t flood_keepalive (float scale = 1.0f) const;
 	size_t flood_keepalive_self (float scale = 0.5f) const;
