@@ -397,9 +397,9 @@ bool nano::network::track_reachout (nano::endpoint const & endpoint_a)
 	return tcp_channels.track_reachout (endpoint_a);
 }
 
-std::deque<std::shared_ptr<nano::transport::channel>> nano::network::list (std::size_t max_count, uint8_t minimum_version) const
+std::deque<std::shared_ptr<nano::transport::channel>> nano::network::list (std::size_t max_count, channel_filter filter) const
 {
-	auto result = tcp_channels.list (minimum_version);
+	auto result = tcp_channels.list (filter);
 	nano::random_pool_shuffle (result.begin (), result.end ()); // Randomize returned peer order
 	if (max_count > 0 && result.size () > max_count)
 	{
@@ -408,9 +408,9 @@ std::deque<std::shared_ptr<nano::transport::channel>> nano::network::list (std::
 	return result;
 }
 
-std::deque<std::shared_ptr<nano::transport::channel>> nano::network::list_non_pr (std::size_t max_count, uint8_t minimum_version) const
+std::deque<std::shared_ptr<nano::transport::channel>> nano::network::list_non_pr (std::size_t max_count, channel_filter filter) const
 {
-	auto result = tcp_channels.list (minimum_version);
+	auto result = tcp_channels.list (filter);
 
 	auto partition_point = std::partition (result.begin (), result.end (),
 	[this] (std::shared_ptr<nano::transport::channel> const & channel) {
@@ -425,6 +425,16 @@ std::deque<std::shared_ptr<nano::transport::channel>> nano::network::list_non_pr
 		result.resize (max_count, nullptr);
 	}
 	return result;
+}
+
+std::deque<std::shared_ptr<nano::transport::channel>> nano::network::list (std::size_t max_count, uint8_t minimum_version) const
+{
+	return list (max_count, [minimum_version] (auto const & channel) { return channel->get_network_version () >= minimum_version; });
+}
+
+std::deque<std::shared_ptr<nano::transport::channel>> nano::network::list_non_pr (std::size_t max_count, uint8_t minimum_version) const
+{
+	return list_non_pr (max_count, [minimum_version] (auto const & channel) { return channel->get_network_version () >= minimum_version; });
 }
 
 // Simulating with sqrt_broadcast_simulate shows we only need to broadcast to sqrt(total_peers) random peers in order to successfully publish to everyone with high probability
