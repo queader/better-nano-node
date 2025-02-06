@@ -711,14 +711,17 @@ void representative_visitor::state_block (nano::state_block const & block_a)
 {
 	result = block_a.hash ();
 }
-} // namespace
+}
+
+/*
+ * ledger
+ */
 
 nano::ledger::ledger (nano::store::component & store_a, nano::stats & stat_a, nano::ledger_constants & constants, nano::generate_cache_flags const & generate_cache_flags_a, nano::uint128_t min_rep_weight_a) :
 	constants{ constants },
 	store{ store_a },
 	cache{ store_a.rep_weight, min_rep_weight_a },
 	stats{ stat_a },
-	check_bootstrap_weights{ true },
 	any_impl{ std::make_unique<ledger_set_any> (*this) },
 	confirmed_impl{ std::make_unique<ledger_set_confirmed> (*this) },
 	any{ *any_impl },
@@ -962,25 +965,38 @@ std::deque<std::shared_ptr<nano::block>> nano::ledger::random_blocks (secure::tr
 	return result;
 }
 
-// Vote weight of an account
+bool nano::ledger::bootstrap_height_reached () const
+{
+	return cache.block_count >= bootstrap_weight_max_blocks;
+}
+
+std::unordered_map<nano::account, nano::uint128_t> nano::ledger::rep_weights_snapshot () const
+{
+	if (!bootstrap_height_reached ())
+	{
+		return bootstrap_weights;
+	}
+	else
+	{
+		return cache.rep_weights.get_rep_amounts ();
+	}
+}
+
 nano::uint128_t nano::ledger::weight (nano::account const & account_a) const
 {
-	if (check_bootstrap_weights.load ())
+	if (!bootstrap_height_reached ())
 	{
-		if (cache.block_count < bootstrap_weight_max_blocks)
+		auto weight = bootstrap_weights.find (account_a);
+		if (weight != bootstrap_weights.end ())
 		{
-			auto weight = bootstrap_weights.find (account_a);
-			if (weight != bootstrap_weights.end ())
-			{
-				return weight->second;
-			}
+			return weight->second;
 		}
-		else
-		{
-			check_bootstrap_weights = false;
-		}
+		return 0;
 	}
-	return cache.rep_weights.representation_get (account_a);
+	else
+	{
+		return cache.rep_weights.representation_get (account_a);
+	}
 }
 
 nano::uint128_t nano::ledger::weight_exact (secure::transaction const & txn_a, nano::account const & representative_a) const
@@ -1509,11 +1525,6 @@ bool nano::ledger::migrate_lmdb_to_rocksdb (std::filesystem::path const & data_p
 		error = true;
 	}
 	return error;
-}
-
-bool nano::ledger::bootstrap_weight_reached () const
-{
-	return cache.block_count >= bootstrap_weight_max_blocks;
 }
 
 nano::epoch nano::ledger::version (nano::block const & block)

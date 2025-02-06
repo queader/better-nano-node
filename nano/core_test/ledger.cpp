@@ -2251,51 +2251,87 @@ TEST (ledger, send_open_receive_rollback)
 	ASSERT_EQ (nano::dev::constants.genesis_amount - 0, ledger.weight (nano::dev::genesis_key.pub));
 }
 
-TEST (ledger, bootstrap_rep_weight)
+TEST (ledger, bootstrap_weights)
 {
 	auto ctx = nano::test::ledger_empty ();
 	auto & ledger = ctx.ledger ();
 	auto & store = ctx.store ();
-	nano::keypair key2;
 	auto & pool = ctx.pool ();
+
+	nano::keypair rep_key1, rep_key2, throwaway;
+
+	// Genesis key has all the voting weight
+	ASSERT_EQ (std::numeric_limits<nano::uint128_t>::max (), ledger.weight (nano::dev::genesis_key.pub));
+
+	// Throwaway transaction to reduce genesis weight
 	{
 		auto transaction = ledger.tx_begin_write ();
-		auto info1 = ledger.any.account_get (transaction, nano::dev::genesis_key.pub);
-		ASSERT_TRUE (info1);
+		auto genesis_info = ledger.any.account_get (transaction, nano::dev::genesis_key.pub);
+		ASSERT_TRUE (genesis_info);
 		nano::block_builder builder;
 		auto send = builder
 					.send ()
-					.previous (info1->head)
-					.destination (key2.pub)
+					.previous (genesis_info->head)
+					.destination (throwaway.pub)
 					.balance (std::numeric_limits<nano::uint128_t>::max () - 50)
 					.sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
-					.work (*pool.generate (info1->head))
+					.work (*pool.generate (genesis_info->head))
 					.build ();
 		ASSERT_EQ (nano::block_status::progress, ledger.process (transaction, send));
 	}
+
+	// Override bootstrap weights
+	ledger.bootstrap_weight_max_blocks = 4;
+	ledger.bootstrap_weights[rep_key1.pub] = 1000;
+
+	// Should use bootstrap weights
 	ASSERT_EQ (2, ledger.block_count ());
+	ASSERT_FALSE (ledger.bootstrap_height_reached ());
+	ASSERT_EQ (0, ledger.weight (nano::dev::genesis_key.pub));
+	ASSERT_EQ (1000, ledger.weight (rep_key1.pub));
 	{
-		ledger.bootstrap_weight_max_blocks = 3;
-		ledger.bootstrap_weights[key2.pub] = 1000;
-		ASSERT_EQ (1000, ledger.weight (key2.pub));
+		auto snapshot = ledger.rep_weights_snapshot ();
+		ASSERT_EQ (1, snapshot.size ());
+		ASSERT_EQ (1000, snapshot[rep_key1.pub]);
 	}
+
+	// Open normal representative account, should not use bootstrap weights anymore
 	{
 		auto transaction = ledger.tx_begin_write ();
-		auto info1 = ledger.any.account_get (transaction, nano::dev::genesis_key.pub);
-		ASSERT_TRUE (info1);
+		auto genesis_info = ledger.any.account_get (transaction, nano::dev::genesis_key.pub);
+		ASSERT_TRUE (genesis_info);
 		nano::block_builder builder;
 		auto send = builder
 					.send ()
-					.previous (info1->head)
-					.destination (key2.pub)
+					.previous (genesis_info->head)
+					.destination (rep_key2.pub)
 					.balance (std::numeric_limits<nano::uint128_t>::max () - 100)
 					.sign (nano::dev::genesis_key.prv, nano::dev::genesis_key.pub)
-					.work (*pool.generate (info1->head))
+					.work (*pool.generate (genesis_info->head))
 					.build ();
 		ASSERT_EQ (nano::block_status::progress, ledger.process (transaction, send));
+
+		auto open = builder
+					.open ()
+					.source (send->hash ())
+					.representative (rep_key2.pub)
+					.account (rep_key2.pub)
+					.sign (rep_key2.prv, rep_key2.pub)
+					.work (*pool.generate (rep_key2.pub))
+					.build ();
+		ASSERT_EQ (nano::block_status::progress, ledger.process (transaction, open));
 	}
-	ASSERT_EQ (3, ledger.block_count ());
-	ASSERT_EQ (0, ledger.weight (key2.pub));
+	ASSERT_EQ (4, ledger.block_count ());
+	ASSERT_TRUE (ledger.bootstrap_height_reached ());
+	ASSERT_EQ (std::numeric_limits<nano::uint128_t>::max () - 100, ledger.weight (nano::dev::genesis_key.pub));
+	ASSERT_EQ (0, ledger.weight (rep_key1.pub));
+	ASSERT_EQ (50, ledger.weight (rep_key2.pub));
+	{
+		auto snapshot = ledger.rep_weights_snapshot ();
+		ASSERT_EQ (2, snapshot.size ());
+		ASSERT_EQ (std::numeric_limits<nano::uint128_t>::max () - 100, snapshot[nano::dev::genesis_key.pub]);
+		ASSERT_EQ (50, snapshot[rep_key2.pub]);
+	}
 }
 
 TEST (ledger, block_destination_source)
