@@ -417,6 +417,21 @@ std::deque<std::shared_ptr<nano::transport::channel>> nano::transport::tcp_chann
 	return result;
 }
 
+std::deque<std::shared_ptr<nano::transport::channel>> nano::transport::tcp_channels::list (channel_filter filter) const
+{
+	nano::lock_guard<nano::mutex> lock{ mutex };
+
+	std::deque<std::shared_ptr<nano::transport::channel>> result;
+	for (auto const & entry : channels)
+	{
+		if (filter == nullptr || filter (entry.channel))
+		{
+			result.push_back (entry.channel);
+		}
+	}
+	return result;
+}
+
 bool nano::transport::tcp_channels::start_tcp (nano::endpoint const & endpoint)
 {
 	return node.tcp_listener.connect (endpoint.address (), endpoint.port ());
