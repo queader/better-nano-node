@@ -139,7 +139,7 @@ void nano::vote_rebroadcaster::run ()
 			lock.lock ();
 		}
 
-		float constexpr network_fanout_scale = 0.5f;
+		float constexpr network_fanout_scale = 1.0f;
 
 		// Wait for spare if our network traffic is too high
 		if (!network.check_capacity (nano::transport::traffic_type::vote_rebroadcast, network_fanout_scale))
