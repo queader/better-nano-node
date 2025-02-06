@@ -63,7 +63,7 @@ public: // Payload
 	nano::signature signature{ 0 };
 
 private: // Payload
-	// Vote timestamp
+	// Vote timestamp (milliseconds since epoch)
 	uint64_t timestamp_m{ 0 };
 
 private:
