@@ -201,7 +201,7 @@ nano::node::node (std::shared_ptr<boost::asio::io_context> io_ctx_a, std::filesy
 	http_callbacks{ *http_callbacks_impl },
 	pruning_impl{ std::make_unique<nano::pruning> (config, flags, ledger, stats, logger) },
 	pruning{ *pruning_impl },
-	vote_rebroadcaster_impl{ std::make_unique<nano::vote_rebroadcaster> (vote_router, network, wallets, rep_tiers, stats, logger) },
+	vote_rebroadcaster_impl{ std::make_unique<nano::vote_rebroadcaster> (config.vote_rebroadcaster, vote_router, network, wallets, rep_tiers, stats, logger) },
 	vote_rebroadcaster{ *vote_rebroadcaster_impl },
 	startup_time{ std::chrono::steady_clock::now () },
 	node_seq{ seq }

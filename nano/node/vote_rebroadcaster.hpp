@@ -29,6 +29,7 @@ public:
 	// TODO: Serde
 
 public:
+	bool enable{ true };
 	size_t max_queue{ 1024 * 16 }; // Maximum number of votes to keep in queue for processing
 	size_t max_history{ 1024 * 16 }; // Maximum number of recently broadcast hashes to keep per representative
 	size_t max_representatives{ 1000 }; // Maximum number of representatives to track rebroadcasts for
@@ -38,7 +39,7 @@ public:
 class vote_rebroadcaster final
 {
 public:
-	vote_rebroadcaster (nano::vote_router &, nano::network &, nano::wallets &, nano::rep_tiers &, nano::stats &, nano::logger &);
+	vote_rebroadcaster (vote_rebroadcaster_config const &, nano::vote_router &, nano::network &, nano::wallets &, nano::rep_tiers &, nano::stats &, nano::logger &);
 	~vote_rebroadcaster ();
 
 	void start ();
@@ -49,7 +50,7 @@ public:
 	nano::container_info container_info () const;
 
 public: // Dependencies
-	vote_rebroadcaster_config const config; // TODO: Pass in constructor
+	vote_rebroadcaster_config const & config;
 	nano::vote_router & vote_router;
 	nano::network & network;
 	nano::wallets & wallets;
@@ -108,7 +109,7 @@ private:
 	nano::locked<std::unordered_map<nano::account, ordered_rebroadcasts>> rebroadcasts;
 
 private:
-	std::atomic<bool> enable{ true }; // Enable vote rebroadcasting only if the node does not host a representative
+	std::atomic<bool> non_principal{ true };
 	nano::wallet_representatives reps;
 	nano::interval refresh_interval;
 	nano::interval cleanup_interval;

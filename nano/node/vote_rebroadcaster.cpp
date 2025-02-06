@@ -9,7 +9,8 @@
 #include <nano/node/wallet.hpp>
 #include <nano/secure/vote.hpp>
 
-nano::vote_rebroadcaster::vote_rebroadcaster (nano::vote_router & vote_router_a, nano::network & network_a, nano::wallets & wallets_a, nano::rep_tiers & rep_tiers_a, nano::stats & stats_a, nano::logger & logger_a) :
+nano::vote_rebroadcaster::vote_rebroadcaster (nano::vote_rebroadcaster_config const & config_a, nano::vote_router & vote_router_a, nano::network & network_a, nano::wallets & wallets_a, nano::rep_tiers & rep_tiers_a, nano::stats & stats_a, nano::logger & logger_a) :
+	config{ config_a },
 	vote_router{ vote_router_a },
 	network{ network_a },
 	wallets{ wallets_a },
@@ -17,12 +18,19 @@ nano::vote_rebroadcaster::vote_rebroadcaster (nano::vote_router & vote_router_a,
 	stats{ stats_a },
 	logger{ logger_a }
 {
+	if (!config.enable)
+	{
+		return;
+	}
+
 	vote_router.vote_processed.add ([this] (std::shared_ptr<nano::vote> const & vote, nano::vote_source source, std::unordered_map<nano::block_hash, nano::vote_code> const & results) {
 		bool processed = std::any_of (results.begin (), results.end (), [] (auto const & result) {
 			return result.second == nano::vote_code::vote;
 		});
+
+		// Enable vote rebroadcasting only if the node does not host a representative
 		// Do not rebroadcast votes from non-principal representatives
-		if (processed && enable && rep_tiers.tier (vote->account) != nano::rep_tier::none)
+		if (processed && non_principal && rep_tiers.tier (vote->account) != nano::rep_tier::none)
 		{
 			put (vote);
 		}
@@ -37,6 +45,11 @@ nano::vote_rebroadcaster::~vote_rebroadcaster ()
 void nano::vote_rebroadcaster::start ()
 {
 	debug_assert (!thread.joinable ());
+
+	if (!config.enable)
+	{
+		return;
+	}
 
 	thread = std::thread ([this] () {
 		nano::thread_role::set (nano::thread_role::name::vote_rebroadcasting);
@@ -115,7 +128,7 @@ void nano::vote_rebroadcaster::run ()
 			stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::refresh);
 
 			reps = wallets.reps ();
-			enable = !reps.have_half_rep (); // Disable vote rebroadcasting if the node has a principal representative (or close to)
+			non_principal = !reps.have_half_rep (); // Disable vote rebroadcasting if the node has a principal representative (or close to)
 		}
 
 		// Cleanup expired representatives from rebroadcasts
