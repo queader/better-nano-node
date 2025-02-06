@@ -126,6 +126,18 @@ void nano::vote_rebroadcaster::run ()
 			lock.lock ();
 		}
 
+		float constexpr network_fanout_scale = 0.5f;
+
+		// Wait for spare if our network traffic is too high
+		if (!network.check_capacity (nano::transport::traffic_type::vote_rebroadcast, network_fanout_scale))
+		{
+			stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::cooldown);
+			lock.unlock ();
+			std::this_thread::sleep_for (100ms);
+			lock.lock ();
+			continue; // Wait for more capacity
+		}
+
 		if (!queue.empty ())
 		{
 			auto entry = queue.front ();
@@ -139,7 +151,7 @@ void nano::vote_rebroadcaster::run ()
 				stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::rebroadcast);
 				stats.add (nano::stat::type::vote_rebroadcaster, nano::stat::detail::rebroadcast_hashes, entry.vote->hashes.size ());
 
-				auto sent = network.flood_vote (entry.vote, 0.5f, /* rebroadcasted */ true);
+				auto sent = network.flood_vote (entry.vote, network_fanout_scale, /* rebroadcasted */ true);
 				stats.add (nano::stat::type::vote_rebroadcaster, nano::stat::detail::sent, sent);
 			}
 

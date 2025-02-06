@@ -247,6 +247,15 @@ void nano::network::send_keepalive_self (std::shared_ptr<nano::transport::channe
 	channel->send (message, nano::transport::traffic_type::keepalive);
 }
 
+bool nano::network::check_capacity (nano::transport::traffic_type type, float scale) const
+{
+	auto const target_count = fanout (scale);
+	auto channels = list (target_count, [type] (auto const & channel) {
+		return !channel->max (type); // Only use channels that are not full for this traffic type
+	});
+	return !channels.empty () && channels.size () >= target_count / 2; // We need to have at least half of the target capacity available
+}
+
 size_t nano::network::flood_message (nano::message const & message, nano::transport::traffic_type type, float scale) const
 {
 	auto channels = list (fanout (scale), [type] (auto const & channel) {
