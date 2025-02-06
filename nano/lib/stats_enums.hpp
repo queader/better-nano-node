@@ -174,6 +174,7 @@ enum class detail
 	error,
 	failed,
 	refresh,
+	sent,
 
 	// processing queue
 	queue,
@@ -439,11 +440,13 @@ enum class detail
 	cleanup_outdated,
 	erase_stale,
 
-	// vote generator
+	// vote_generator
 	generator_broadcasts,
 	generator_replies,
 	generator_replies_discarded,
 	generator_spacing,
+	sent_pr,
+	sent_non_pr,
 
 	// hinting
 	missing_block,
