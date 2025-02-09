@@ -25,6 +25,7 @@ enum class type
 	vote_processor_tier,
 	vote_processor_overfill,
 	vote_rebroadcaster,
+	vote_rebroadcaster_tier,
 	election,
 	election_cleanup,
 	election_vote,

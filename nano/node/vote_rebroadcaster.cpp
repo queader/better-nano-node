@@ -1,5 +1,6 @@
 #include <nano/lib/assert.hpp>
 #include <nano/lib/interval.hpp>
+#include <nano/lib/numbers_templ.hpp>
 #include <nano/lib/thread_roles.hpp>
 #include <nano/node/network.hpp>
 #include <nano/node/rep_tiers.hpp>
@@ -23,6 +24,36 @@ nano::vote_rebroadcaster::vote_rebroadcaster (nano::vote_rebroadcaster_config co
 		return;
 	}
 
+	queue.max_size_query = [this] (auto const & origin) {
+		switch (origin.source)
+		{
+			case nano::rep_tier::tier_3:
+			case nano::rep_tier::tier_2:
+			case nano::rep_tier::tier_1:
+				return config.max_queue;
+			case nano::rep_tier::none:
+				return size_t{ 0 };
+		}
+		debug_assert (false);
+		return size_t{ 0 };
+	};
+
+	queue.priority_query = [this] (auto const & origin) {
+		switch (origin.source)
+		{
+			case nano::rep_tier::tier_3:
+				return config.priority_coefficient * config.priority_coefficient * config.priority_coefficient;
+			case nano::rep_tier::tier_2:
+				return config.priority_coefficient * config.priority_coefficient;
+			case nano::rep_tier::tier_1:
+				return config.priority_coefficient;
+			case nano::rep_tier::none:
+				return size_t{ 0 };
+		}
+		debug_assert (false);
+		return size_t{ 0 };
+	};
+
 	vote_router.vote_processed.add ([this] (std::shared_ptr<nano::vote> const & vote, nano::vote_source source, std::unordered_map<nano::block_hash, nano::vote_code> const & results) {
 		bool processed = std::any_of (results.begin (), results.end (), [] (auto const & result) {
 			return result.second == nano::vote_code::vote;
@@ -30,9 +61,13 @@ nano::vote_rebroadcaster::vote_rebroadcaster (nano::vote_rebroadcaster_config co
 
 		// Enable vote rebroadcasting only if the node does not host a representative
 		// Do not rebroadcast votes from non-principal representatives
-		if (processed && non_principal && rep_tiers.tier (vote->account) != nano::rep_tier::none)
+		if (processed && non_principal)
 		{
-			put (vote);
+			auto tier = rep_tiers.tier (vote->account);
+			if (tier != nano::rep_tier::none)
+			{
+				push (vote, tier);
+			}
 		}
 	});
 }
@@ -70,27 +105,19 @@ void nano::vote_rebroadcaster::stop ()
 	}
 }
 
-bool nano::vote_rebroadcaster::put (std::shared_ptr<nano::vote> const & vote)
+bool nano::vote_rebroadcaster::push (std::shared_ptr<nano::vote> const & vote, nano::rep_tier tier)
 {
-	bool added{ false };
-	bool overfill{ false };
+	bool added = false;
 	{
 		std::lock_guard guard{ mutex };
 
 		// Do not rebroadcast local representative votes
-		if (!reps.exists (vote->account))
+		if (!reps.exists (vote->account) && !queue_hashes.contains (vote->signature))
 		{
-			auto [it, inserted] = queue.emplace_front (queue_entry{ vote });
-			if (inserted)
+			added = queue.push (vote, tier);
+			if (added)
 			{
-				added = true;
-
-				// Erase the oldest votes if the queue is full
-				if (queue.size () > config.max_queue)
-				{
-					queue.pop_back ();
-					overfill = true;
-				}
+				queue_hashes.insert (vote->signature); // Keep track of vote signatures to avoid duplicates
 			}
 		}
 	}
@@ -99,11 +126,24 @@ bool nano::vote_rebroadcaster::put (std::shared_ptr<nano::vote> const & vote)
 		stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::queued);
 		condition.notify_one ();
 	}
-	if (overfill)
-	{
-		stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::overfill);
-	}
 	return added;
+}
+
+std::pair<std::shared_ptr<nano::vote>, nano::rep_tier> nano::vote_rebroadcaster::next ()
+{
+	debug_assert (!mutex.try_lock ());
+	debug_assert (!queue.empty ());
+
+	queue.periodic_update ();
+
+	auto [vote, origin] = queue.next ();
+	release_assert (vote != nullptr);
+	release_assert (origin.source != nano::rep_tier::none);
+
+	auto erased = queue_hashes.erase (vote->signature);
+	debug_assert (erased == 1);
+
+	return { vote, origin.source };
 }
 
 void nano::vote_rebroadcaster::run ()
@@ -153,18 +193,18 @@ void nano::vote_rebroadcaster::run ()
 
 		if (!queue.empty ())
 		{
-			auto entry = queue.front ();
-			queue.pop_front ();
+			auto [vote, tier] = next ();
 
 			lock.unlock ();
 
-			bool should_rebroadcast = process (entry.vote);
+			bool should_rebroadcast = process (vote);
 			if (should_rebroadcast)
 			{
 				stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::rebroadcast);
-				stats.add (nano::stat::type::vote_rebroadcaster, nano::stat::detail::rebroadcast_hashes, entry.vote->hashes.size ());
+				stats.add (nano::stat::type::vote_rebroadcaster, nano::stat::detail::rebroadcast_hashes, vote->hashes.size ());
+				stats.inc (nano::stat::type::vote_rebroadcaster_tier, to_stat_detail (tier));
 
-				auto sent = network.flood_vote (entry.vote, network_fanout_scale, /* rebroadcasted */ true);
+				auto sent = network.flood_vote (vote, network_fanout_scale, /* rebroadcasted */ true);
 				stats.add (nano::stat::type::vote_rebroadcaster, nano::stat::detail::sent, sent);
 			}
 
@@ -287,7 +327,9 @@ nano::container_info nano::vote_rebroadcaster::container_info () const
 	});
 
 	nano::container_info info;
-	info.put ("queue", queue.size ());
+	info.add ("queue", queue.container_info ());
+	info.put ("queue_total", queue.size ());
+	info.put ("queue_hashes", queue_hashes.size ());
 	info.put ("accounts", rebroadcasts_l->size ());
 	info.put ("history", total_history);
 	return info;

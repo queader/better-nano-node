@@ -592,6 +592,8 @@ template <>
 struct hash<::nano::uint512_union>;
 template <>
 struct hash<::nano::qualified_root>;
+template <>
+struct hash<::nano::signature>;
 }
 
 namespace boost
@@ -618,4 +620,6 @@ template <>
 struct hash<::nano::uint512_union>;
 template <>
 struct hash<::nano::qualified_root>;
+template <>
+struct hash<::nano::signature>;
 }
