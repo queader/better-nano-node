@@ -277,6 +277,8 @@ enum class detail
 	// vote_rebroadcaster
 	cleanup_tiers,
 	representatives_full,
+	representatives_erase_lowest,
+	representatives_erase_stale,
 	already_rebroadcasted,
 	rebroadcast_unnecessary,
 	rebroadcast_hashes,
