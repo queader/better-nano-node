@@ -39,36 +39,35 @@ public:
 	size_t priority_coefficient{ 2 }; // Priority coefficient for prioritizing votes from representative tiers
 };
 
-class vote_rebroadcaster final
+class vote_rebroadcaster_index
 {
 public:
-	vote_rebroadcaster (vote_rebroadcaster_config const &, nano::ledger &, nano::vote_router &, nano::network &, nano::wallets &, nano::rep_tiers &, nano::stats &, nano::logger &);
-	~vote_rebroadcaster ();
+	explicit vote_rebroadcaster_index (vote_rebroadcaster_config const &);
 
-	void start ();
-	void stop ();
+	enum class result
+	{
+		ok,
+		already_rebroadcasted,
+		representatives_full,
+		rebroadcast_unnecessary,
+	};
 
-	bool push (std::shared_ptr<nano::vote> const &, nano::rep_tier);
+	result check_and_record (std::shared_ptr<nano::vote> const & vote, nano::uint128_t rep_weight, std::chrono::steady_clock::time_point now);
 
-	nano::container_info container_info () const;
+	using rep_query = std::function<std::pair<bool, nano::uint128_t> (nano::account const &)>; // Returns <should keep, rep weight>
+	size_t cleanup (rep_query);
 
-public: // Dependencies
+	bool contains_vote (nano::block_hash const & vote_hash) const;
+	bool contains_representative (nano::account const & representative) const;
+	bool contains_block (nano::account const & representative, nano::block_hash const & block_hash) const;
+
+	size_t representatives_count () const;
+	size_t total_history () const;
+	size_t total_hashes () const;
+
+private:
 	vote_rebroadcaster_config const & config;
-	nano::ledger & ledger;
-	nano::vote_router & vote_router;
-	nano::network & network;
-	nano::wallets & wallets;
-	nano::rep_tiers & rep_tiers;
-	nano::stats & stats;
-	nano::logger & logger;
 
-private:
-	void run ();
-	void cleanup ();
-	bool process (std::shared_ptr<nano::vote> const &);
-	std::pair<std::shared_ptr<nano::vote>, nano::rep_tier> next ();
-
-private:
 	struct rebroadcast_entry
 	{
 		nano::block_hash block_hash;
@@ -83,12 +82,13 @@ private:
 
 	// Tracks rebroadcast history for individual block hashes
 	using ordered_rebroadcasts = boost::multi_index_container<rebroadcast_entry,
-    mi::indexed_by<
-    	mi::sequenced<mi::tag<tag_sequenced>>,
-        mi::hashed_unique<mi::tag<tag_block_hash>,
-            mi::member<rebroadcast_entry, nano::block_hash, &rebroadcast_entry::block_hash>>
+	mi::indexed_by<
+		mi::sequenced<mi::tag<tag_sequenced>>,
+		mi::hashed_unique<mi::tag<tag_block_hash>,
+			mi::member<rebroadcast_entry, nano::block_hash, &rebroadcast_entry::block_hash>>
 	>>;
 
+	// Tracks rebroadcast history for full votes
 	using ordered_hashes = boost::multi_index_container<nano::block_hash,
 	mi::indexed_by<
 		mi::sequenced<mi::tag<tag_sequenced>>,
@@ -120,12 +120,44 @@ private:
 	>>;
 	// clang-format on
 
+	ordered_representatives index;
+};
+
+class vote_rebroadcaster final
+{
+public:
+	vote_rebroadcaster (vote_rebroadcaster_config const &, nano::ledger &, nano::vote_router &, nano::network &, nano::wallets &, nano::rep_tiers &, nano::stats &, nano::logger &);
+	~vote_rebroadcaster ();
+
+	void start ();
+	void stop ();
+
+	bool push (std::shared_ptr<nano::vote> const &, nano::rep_tier);
+
+	nano::container_info container_info () const;
+
+public: // Dependencies
+	vote_rebroadcaster_config const & config;
+	nano::ledger & ledger;
+	nano::vote_router & vote_router;
+	nano::network & network;
+	nano::wallets & wallets;
+	nano::rep_tiers & rep_tiers;
+	nano::stats & stats;
+	nano::logger & logger;
+
+private:
+	void run ();
+	void cleanup ();
+	bool process (std::shared_ptr<nano::vote> const &);
+	std::pair<std::shared_ptr<nano::vote>, nano::rep_tier> next ();
+
+private:
 	// Queue of recently processed votes to potentially rebroadcast
 	nano::fair_queue<std::shared_ptr<nano::vote>, nano::rep_tier> queue;
 	std::unordered_set<nano::signature> queue_hashes; // Avoids queuing the same vote multiple times
 
-	// Using rep tiers naturally bounds the number of possible entries to the maximum number of possible principal representatives (1000)
-	nano::locked<ordered_representatives> rebroadcasts;
+	nano::locked<vote_rebroadcaster_index> rebroadcasts;
 
 private:
 	std::atomic<bool> non_principal{ true };

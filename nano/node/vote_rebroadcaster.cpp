@@ -19,7 +19,8 @@ nano::vote_rebroadcaster::vote_rebroadcaster (nano::vote_rebroadcaster_config co
 	wallets{ wallets_a },
 	rep_tiers{ rep_tiers_a },
 	stats{ stats_a },
-	logger{ logger_a }
+	logger{ logger_a },
+	rebroadcasts{ config }
 {
 	if (!config.enable)
 	{
@@ -219,43 +220,94 @@ bool nano::vote_rebroadcaster::process (std::shared_ptr<nano::vote> const & vote
 {
 	stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::process);
 
-	auto const vote_timestamp = vote->timestamp ();
-	auto const vote_hash = vote->full_hash ();
+	auto rebroadcasts_l = rebroadcasts.lock ();
+
+	auto result = rebroadcasts_l->check_and_record (vote, ledger.weight (vote->account), std::chrono::steady_clock::now ());
+	if (result == nano::vote_rebroadcaster_index::result::ok)
+	{
+		return true; // Vote qualifies for rebroadcast
+	}
+	else
+	{
+		stats.inc (nano::stat::type::vote_rebroadcaster, nano::enum_util::cast<nano::stat::detail> (result));
+		return false; // Vote does not qualify for rebroadcast
+	}
+}
+
+void nano::vote_rebroadcaster::cleanup ()
+{
+	stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::cleanup);
 
 	auto rebroadcasts_l = rebroadcasts.lock ();
 
-	auto it = rebroadcasts_l->get<tag_account> ().find (vote->account);
+	auto erased_reps = rebroadcasts_l->cleanup ([this] (auto const & rep) {
+		auto tier = rep_tiers.tier (rep);
+		auto weight = ledger.weight (rep);
+		return std::make_pair (tier != nano::rep_tier::none /* keep entry only if principal rep */, weight);
+	});
+
+	stats.add (nano::stat::type::vote_rebroadcaster, nano::stat::detail::representatives_erase_stale, erased_reps);
+}
+
+nano::container_info nano::vote_rebroadcaster::container_info () const
+{
+	std::lock_guard guard{ mutex };
+
+	auto rebroadcasts_l = rebroadcasts.lock ();
+
+	nano::container_info info;
+	info.add ("queue", queue.container_info ());
+	info.put ("queue_total", queue.size ());
+	info.put ("queue_hashes", queue_hashes.size ());
+	info.put ("representatives", rebroadcasts_l->representatives_count ());
+	info.put ("history", rebroadcasts_l->total_history ());
+	info.put ("hashes", rebroadcasts_l->total_hashes ());
+	return info;
+}
+
+/*
+ * vote_rebroadcaster_index
+ */
+
+nano::vote_rebroadcaster_index::vote_rebroadcaster_index (nano::vote_rebroadcaster_config const & config_a) :
+	config{ config_a }
+{
+}
+
+nano::vote_rebroadcaster_index::result nano::vote_rebroadcaster_index::check_and_record (std::shared_ptr<nano::vote> const & vote, nano::uint128_t rep_weight, std::chrono::steady_clock::time_point now)
+{
+	auto const vote_timestamp = vote->timestamp ();
+	auto const vote_hash = vote->full_hash ();
+
+	auto it = index.get<tag_account> ().find (vote->account);
 
 	// If we don't have a record for this rep, add it
-	if (it == rebroadcasts_l->get<tag_account> ().end ())
+	if (it == index.get<tag_account> ().end ())
 	{
-		auto const weight = ledger.weight (vote->account);
-
 		auto should_add = [&, this] () {
 			// Under normal conditions the number of principal representatives should be below this limit
-			if (rebroadcasts_l->size () < config.max_representatives)
+			if (index.size () < config.max_representatives)
 			{
 				return true;
 			}
 			// However, if we're at capacity, we can still add the rep if it has a higher weight than the lowest weight in the container
-			if (auto lowest = rebroadcasts_l->get<tag_weight> ().begin (); lowest != rebroadcasts_l->get<tag_weight> ().end ())
+			if (auto lowest = index.get<tag_weight> ().begin (); lowest != index.get<tag_weight> ().end ())
 			{
-				return weight > lowest->weight;
+				return rep_weight > lowest->weight;
 			}
 			return false;
 		};
 
 		if (should_add ())
 		{
-			it = rebroadcasts_l->get<tag_account> ().emplace (representative_entry{ vote->account, weight }).first;
+			it = index.get<tag_account> ().emplace (representative_entry{ vote->account, rep_weight }).first;
 		}
 		else
 		{
-			stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::representatives_full);
-			return false;
+			return result::representatives_full;
 		}
 	}
-	release_assert (it != rebroadcasts_l->get<tag_account> ().end ());
+	release_assert (it != index.get<tag_account> ().end ());
 
 	auto & history = it->history;
 	auto & hashes = it->hashes;
@@ -263,11 +315,8 @@ bool nano::vote_rebroadcaster::process (std::shared_ptr<nano::vote> const & vote
 	// Check if we already rebroadcasted this exact vote (fast lookup by hash)
 	if (hashes.get<tag_vote_hash> ().contains (vote_hash))
 	{
-		stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::already_rebroadcasted);
-		return false;
+		return result::already_rebroadcasted;
 	}
-
-	auto const now = std::chrono::steady_clock::now ();
 
 	// Check if any of the hashes contained in the vote qualifies for rebroadcasting
 	auto check_hash = [&] (auto const & hash) {
@@ -298,8 +347,7 @@ bool nano::vote_rebroadcaster::process (std::shared_ptr<nano::vote> const & vote
 	bool should_rebroadcast = std::any_of (vote->hashes.begin (), vote->hashes.end (), check_hash);
 	if (!should_rebroadcast)
 	{
-		stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::rebroadcast_unnecessary);
-		return false;
+		return result::rebroadcast_unnecessary;
 	}
 
 	// Update the history with the new vote info
@@ -332,56 +380,70 @@ bool nano::vote_rebroadcaster::process (std::shared_ptr<nano::vote> const & vote
 	}
 
 	// Keep representatives index within limits, erase lowest weight entries
-	while (!rebroadcasts_l->empty () && rebroadcasts_l->size () > config.max_representatives)
+	while (!index.empty () && index.size () > config.max_representatives)
 	{
-		stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::representatives_erase_lowest);
-		rebroadcasts_l->get<tag_weight> ().erase (rebroadcasts_l->get<tag_weight> ().begin ());
+		index.get<tag_weight> ().erase (index.get<tag_weight> ().begin ());
 	}
 
-	return true; // Rebroadcast the vote
+	return result::ok; // Rebroadcast the vote
 }
 
-void nano::vote_rebroadcaster::cleanup ()
+size_t nano::vote_rebroadcaster_index::cleanup (rep_query query)
 {
-	stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::cleanup);
-
-	auto rebroadcasts_l = rebroadcasts.lock ();
-
 	// Remove entries for accounts that are no longer principal representatives
-	auto erased_reps = erase_if (*rebroadcasts_l, [this] (auto const & entry) {
-		return rep_tiers.tier (entry.representative) == nano::rep_tier::none;
+	auto erased_reps = erase_if (index, [&] (auto const & entry) {
+		auto [should_keep, weight] = query (entry.representative);
+		return !should_keep;
 	});
-
-	stats.add (nano::stat::type::vote_rebroadcaster, nano::stat::detail::representatives_erase_stale, erased_reps);
 
 	// Update representative weights
-	for (auto it = rebroadcasts_l->begin (), end = rebroadcasts_l->end (); it != end; ++it)
+	for (auto it = index.begin (), end = index.end (); it != end; ++it)
 	{
-		rebroadcasts_l->modify (it, [this] (auto & entry) {
-			entry.weight = ledger.weight (entry.representative);
+		index.modify (it, [&] (auto & entry) {
+			auto [tier, weight] = query (entry.representative);
+			entry.weight = weight;
 		});
 	}
+
+	return erased_reps;
 }
 
-nano::container_info nano::vote_rebroadcaster::container_info () const
+bool nano::vote_rebroadcaster_index::contains_vote (nano::block_hash const & vote_hash) const
 {
-	std::lock_guard guard{ mutex };
+	return std::any_of (index.begin (), index.end (), [&] (auto const & entry) {
+		return entry.hashes.template get<tag_vote_hash> ().contains (vote_hash);
+	});
+}
 
-	auto rebroadcasts_l = rebroadcasts.lock ();
+bool nano::vote_rebroadcaster_index::contains_representative (nano::account const & representative) const
+{
+	return index.get<tag_account> ().contains (representative);
+}
 
-	auto total_history = std::accumulate (rebroadcasts_l->begin (), rebroadcasts_l->end (), size_t{ 0 }, [] (auto total, auto const & entry) {
+bool nano::vote_rebroadcaster_index::contains_block (nano::account const & representative, nano::block_hash const & block_hash) const
+{
+	if (auto it = index.get<tag_account> ().find (representative); it != index.get<tag_account> ().end ())
+	{
+		return it->history.get<tag_block_hash> ().find (block_hash) != it->history.get<tag_block_hash> ().end ();
+	}
+	return false;
+}
+
+size_t nano::vote_rebroadcaster_index::representatives_count () const
+{
+	return index.size ();
+}
+
+size_t nano::vote_rebroadcaster_index::total_history () const
+{
+	return std::accumulate (index.begin (), index.end (), size_t{ 0 }, [] (auto total, auto const & entry) {
 		return total + entry.history.size ();
 	});
-	auto total_hashes = std::accumulate (rebroadcasts_l->begin (), rebroadcasts_l->end (), size_t{ 0 }, [] (auto total, auto const & entry) {
+}
+
+size_t nano::vote_rebroadcaster_index::total_hashes () const
+{
+	return std::accumulate (index.begin (), index.end (), size_t{ 0 }, [] (auto total, auto const & entry) {
 		return total + entry.hashes.size ();
 	});
-
-	nano::container_info info;
-	info.add ("queue", queue.container_info ());
-	info.put ("queue_total", queue.size ());
-	info.put ("queue_hashes", queue_hashes.size ());
-	info.put ("representatives", rebroadcasts_l->size ());
-	info.put ("history", total_history);
-	info.put ("hashes", total_hashes);
-	return info;
 }
