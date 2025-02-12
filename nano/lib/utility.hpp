@@ -47,19 +47,22 @@ void transform_if (InputIt first, InputIt last, OutputIt dest, Pred pred, Func t
  * TODO: Use `std::erase_if` in c++20
  */
 template <class Container, class Pred>
-void erase_if (Container & container, Pred pred)
+size_t erase_if (Container & container, Pred pred)
 {
+	size_t result = 0;
 	for (auto it = container.begin (), end = container.end (); it != end;)
 	{
 		if (pred (*it))
 		{
 			it = container.erase (it);
+			++result;
 		}
 		else
 		{
 			++it;
 		}
 	}
+	return result;
 }
 
 /** Safe narrowing cast which silences warnings and asserts on data loss in debug builds. This is optimized away. */
