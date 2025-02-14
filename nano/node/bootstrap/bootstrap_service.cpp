@@ -757,6 +757,8 @@ void nano::bootstrap_service::cleanup_and_sync ()
 
 	throttle.resize (compute_throttle_size ());
 
+	accounts.decay_blocking ();
+
 	auto const now = std::chrono::steady_clock::now ();
 	auto should_timeout = [&] (async_tag const & tag) {
 		return tag.cutoff < now;
@@ -777,13 +779,6 @@ void nano::bootstrap_service::cleanup_and_sync ()
 	{
 		stats.inc (nano::stat::type::bootstrap, nano::stat::detail::sync_dependencies);
 		accounts.sync_dependencies ();
-	}
-
-	// Remove very old entries from the blocking set
-	if (decay_blocking_interval.elapse (nano::is_dev_run () ? 1s : 60s))
-	{
-		stats.inc (nano::stat::type::bootstrap, nano::stat::detail::decay_blocking);
-		accounts.decay_blocking ();
 	}
 }
 

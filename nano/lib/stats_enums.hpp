@@ -547,6 +547,7 @@ enum class detail
 	deprioritize_failed,
 	sync_dependencies,
 	decay_blocking,
+	blocking_decayed,
 	dependency_synced,
 
 	request_blocks,

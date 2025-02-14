@@ -330,6 +330,9 @@ size_t nano::bootstrap::account_sets::decay_blocking (std::chrono::steady_clock:
 			break; // Entries are sorted by timestamp, no need to continue
 		}
 	}
+
+	stats.add (nano::stat::type::bootstrap_account_sets, nano::stat::detail::blocking_decayed, result);
+
 	return result;
 }
 
