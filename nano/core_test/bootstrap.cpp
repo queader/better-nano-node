@@ -194,7 +194,6 @@ TEST (account_sets, decay_blocking)
 	nano::account account1{ 1 };
 	nano::account account2{ 2 };
 	nano::account account3{ 3 };
-	auto now = std::chrono::steady_clock::now ();
 
 	// Add first account
 	sets.priority_up (account1);
@@ -203,27 +202,27 @@ TEST (account_sets, decay_blocking)
 	ASSERT_EQ (1, sets.blocked_size ());
 
 	// Decay before timeout should not remove entry
-	ASSERT_EQ (0, sets.decay_blocking (now));
+	ASSERT_EQ (0, sets.decay_blocking ());
 	ASSERT_TRUE (sets.blocked (account1));
 	ASSERT_EQ (1, sets.blocked_size ());
 
 	// Add second account after 500ms
-	now += 500ms;
+	nano::steady_clock::advance (500ms);
 	sets.priority_up (account2);
 	sets.block (account2, random_hash ());
 	ASSERT_TRUE (sets.blocked (account2));
 	ASSERT_EQ (2, sets.blocked_size ());
 
 	// Add third account after another 500ms
-	now += 500ms;
+	nano::steady_clock::advance (500ms);
 	sets.priority_up (account3);
 	sets.block (account3, random_hash ());
 	ASSERT_TRUE (sets.blocked (account3));
 	ASSERT_EQ (3, sets.blocked_size ());
 
 	// Decay at 1.5s - should remove first two accounts
-	now += 500ms;
-	ASSERT_EQ (2, sets.decay_blocking (now));
+	nano::steady_clock::advance (500ms);
+	ASSERT_EQ (2, sets.decay_blocking ());
 	ASSERT_FALSE (sets.blocked (account1));
 	ASSERT_FALSE (sets.blocked (account2));
 	ASSERT_TRUE (sets.blocked (account3));
@@ -237,19 +236,19 @@ TEST (account_sets, decay_blocking)
 	ASSERT_EQ (2, sets.blocked_size ());
 
 	// Immediate decay should not affect reinserted account
-	ASSERT_EQ (0, sets.decay_blocking (now));
+	ASSERT_EQ (0, sets.decay_blocking ());
 	ASSERT_TRUE (sets.blocked (account2));
 
 	// Decay at 2s - should remove account3 but keep reinserted account2
-	now += 500ms;
-	ASSERT_EQ (1, sets.decay_blocking (now));
+	nano::steady_clock::advance (500ms);
+	ASSERT_EQ (1, sets.decay_blocking ());
 	ASSERT_FALSE (sets.blocked (account3));
 	ASSERT_TRUE (sets.blocked (account2));
 	ASSERT_EQ (1, sets.blocked_size ());
 
 	// Final decay after another second - should remove remaining account
-	now += 1s;
-	ASSERT_EQ (1, sets.decay_blocking (now));
+	nano::steady_clock::advance (1s);
+	ASSERT_EQ (1, sets.decay_blocking ());
 	ASSERT_FALSE (sets.blocked (account2));
 	ASSERT_EQ (0, sets.blocked_size ());
 }

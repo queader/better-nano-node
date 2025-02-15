@@ -1,5 +1,6 @@
 #pragma once
 
+#include <nano/lib/clock.hpp>
 #include <nano/lib/numbers.hpp>
 #include <nano/node/bootstrap/bootstrap_config.hpp>
 #include <nano/node/bootstrap/common.hpp>
@@ -58,7 +59,7 @@ public:
 	/**
 	 * Should be called periodically to remove old entries from the blocking set
 	 */
-	size_t decay_blocking (std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now ());
+	size_t decay_blocking (nano::steady_clock::time_point now = nano::steady_clock::now ());
 
 	struct priority_result
 	{
@@ -99,7 +100,7 @@ private:
 		nano::account account;
 		double priority;
 		unsigned fails{ 0 };
-		std::chrono::steady_clock::time_point timestamp{}; // Use for cooldown, set to current time when this account is sampled
+		nano::steady_clock::time_point timestamp{}; // Use for cooldown, set to current time when this account is sampled
 		id_t id{ generate_id () }; // Uniformly distributed, used for random querying
 	};
 
@@ -108,7 +109,7 @@ private:
 		nano::account account;
 		nano::block_hash dependency;
 		nano::account dependency_account{ 0 }; // Account that contains the dependency block, fetched via a background dependency walker
-		std::chrono::steady_clock::time_point timestamp{ std::chrono::steady_clock::now () }; // Used for decaying old entries
+		nano::steady_clock::time_point timestamp{ nano::steady_clock::now () }; // Used for decaying old entries
 		id_t id{ generate_id () }; // Uniformly distributed, used for random querying
 	};
 
@@ -147,7 +148,7 @@ private:
 		mi::ordered_unique<mi::tag<tag_id>,
 			mi::member<blocking_entry, id_t, &blocking_entry::id>>,
 		mi::ordered_non_unique<mi::tag<tag_timestamp>,
-			mi::member<blocking_entry, std::chrono::steady_clock::time_point, &blocking_entry::timestamp>>
+			mi::member<blocking_entry, nano::steady_clock::time_point, &blocking_entry::timestamp>>
 	>>;
 	// clang-format on
 

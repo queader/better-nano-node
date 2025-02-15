@@ -170,7 +170,7 @@ void nano::bootstrap::account_sets::timestamp_set (const nano::account & account
 	if (iter != priorities.get<tag_account> ().end ())
 	{
 		priorities.get<tag_account> ().modify (iter, [] (auto & entry) {
-			entry.timestamp = std::chrono::steady_clock::now ();
+			entry.timestamp = nano::steady_clock::now ();
 		});
 	}
 }
@@ -240,7 +240,7 @@ auto nano::bootstrap::account_sets::next_priority (std::function<bool (nano::acc
 		return { 0 };
 	}
 
-	auto const cutoff = std::chrono::steady_clock::now () - config.cooldown;
+	auto const cutoff = nano::steady_clock::now () - config.cooldown;
 
 	for (auto const & entry : priorities.get<tag_priority> ())
 	{
@@ -311,7 +311,7 @@ void nano::bootstrap::account_sets::sync_dependencies ()
 	trim_overflow ();
 }
 
-size_t nano::bootstrap::account_sets::decay_blocking (std::chrono::steady_clock::time_point now)
+size_t nano::bootstrap::account_sets::decay_blocking (nano::steady_clock::time_point now)
 {
 	stats.inc (nano::stat::type::bootstrap_account_sets, nano::stat::detail::decay_blocking);
 
@@ -324,6 +324,7 @@ size_t nano::bootstrap::account_sets::decay_blocking (std::chrono::steady_clock:
 		if (it->timestamp < cutoff)
 		{
 			it = blocking.get<tag_timestamp> ().erase (it);
+			++result;
 		}
 		else
 		{
