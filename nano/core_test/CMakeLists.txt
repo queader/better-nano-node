@@ -69,6 +69,7 @@ add_executable(
   utility.cpp
   vote_cache.cpp
   vote_processor.cpp
+  vote_rebroadcaster.cpp
   voting.cpp
   wallet.cpp
   wallets.cpp
