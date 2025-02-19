@@ -2238,11 +2238,11 @@ TEST (node, DISABLED_fork_invalid_block_signature)
 	node1.process_active (send1);
 	ASSERT_TIMELY (5s, node1.block (send1->hash ()));
 	// Send the vote with the corrupt block signature
-	node2.network.flood_vote (vote_corrupt, 1.0f);
+	ASSERT_TRUE (node2.network.flood_vote_rebroadcasted (vote_corrupt, 1.0f));
 	// Wait for the rollback
 	ASSERT_TIMELY (5s, node1.stats.count (nano::stat::type::rollback));
 	// Send the vote with the correct block
-	node2.network.flood_vote (vote, 1.0f);
+	ASSERT_TRUE (node2.network.flood_vote_rebroadcasted (vote, 1.0f));
 	ASSERT_TIMELY (10s, !node1.block (send1->hash ()));
 	ASSERT_TIMELY (10s, node1.block (send2->hash ()));
 	ASSERT_EQ (node1.block (send2->hash ())->block_signature (), send2->block_signature ());

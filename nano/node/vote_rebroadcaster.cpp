@@ -114,7 +114,7 @@ void nano::vote_rebroadcaster::run ()
 			stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::rebroadcast);
 			stats.add (nano::stat::type::vote_rebroadcaster, nano::stat::detail::rebroadcast_hashes, vote->hashes.size ());
 
-			auto sent = network.flood_vote (vote, 0.5f, /* rebroadcasted */ true);
+			auto sent = network.flood_vote_rebroadcasted (vote, 0.5f);
 			stats.add (nano::stat::type::vote_rebroadcaster, nano::stat::detail::sent, sent);
 
 			lock.lock ();

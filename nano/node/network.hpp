@@ -98,9 +98,9 @@ public:
 	size_t flood_message (nano::message const &, nano::transport::traffic_type, float scale = 1.0f) const;
 	size_t flood_keepalive (float scale = 1.0f) const;
 	size_t flood_keepalive_self (float scale = 0.5f) const;
-	size_t flood_vote (std::shared_ptr<nano::vote> const &, float scale, bool rebroadcasted = false) const;
-	size_t flood_vote_pr (std::shared_ptr<nano::vote> const &, bool rebroadcasted = false) const;
-	size_t flood_vote_non_pr (std::shared_ptr<nano::vote> const &, float scale, bool rebroadcasted = false) const;
+	size_t flood_vote_pr (std::shared_ptr<nano::vote> const &) const;
+	size_t flood_vote_non_pr (std::shared_ptr<nano::vote> const &, float scale) const;
+	size_t flood_vote_rebroadcasted (std::shared_ptr<nano::vote> const &, float scale) const;
 	// Flood block to all PRs and a random selection of non-PRs
 	size_t flood_block_initial (std::shared_ptr<nano::block> const &) const;
 	// Flood block to a random selection of peers

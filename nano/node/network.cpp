@@ -299,11 +299,11 @@ size_t nano::network::flood_block_initial (std::shared_ptr<nano::block> const & 
 	return result;
 }
 
-size_t nano::network::flood_vote (std::shared_ptr<nano::vote> const & vote, float scale, bool rebroadcasted) const
+size_t nano::network::flood_vote_rebroadcasted (std::shared_ptr<nano::vote> const & vote, float scale) const
 {
-	nano::confirm_ack message{ node.network_params.network, vote, rebroadcasted };
+	nano::confirm_ack message{ node.network_params.network, vote, /* rebroadcasted */ true };
 
-	auto const type = rebroadcasted ? nano::transport::traffic_type::vote_rebroadcast : nano::transport::traffic_type::vote;
+	auto const type = nano::transport::traffic_type::vote_rebroadcast;
 
 	auto channels = list (fanout (scale), [type] (auto const & channel) {
 		return !channel->max (type); // Only use channels that are not full for this traffic type
@@ -318,11 +318,11 @@ size_t nano::network::flood_vote (std::shared_ptr<nano::vote> const & vote, floa
 	return result;
 }
 
-size_t nano::network::flood_vote_non_pr (std::shared_ptr<nano::vote> const & vote, float scale, bool rebroadcasted) const
+size_t nano::network::flood_vote_non_pr (std::shared_ptr<nano::vote> const & vote, float scale) const
 {
-	nano::confirm_ack message{ node.network_params.network, vote, rebroadcasted };
+	nano::confirm_ack message{ node.network_params.network, vote };
 
-	auto const type = rebroadcasted ? nano::transport::traffic_type::vote_rebroadcast : nano::transport::traffic_type::vote;
+	auto const type = transport::traffic_type::vote;
 
 	auto channels = list_non_pr (fanout (scale), [type] (auto const & channel) {
 		return !channel->max (type); // Only use channels that are not full for this traffic type
@@ -337,11 +337,11 @@ size_t nano::network::flood_vote_non_pr (std::shared_ptr<nano::vote> const & vot
 	return result;
 }
 
-size_t nano::network::flood_vote_pr (std::shared_ptr<nano::vote> const & vote, bool rebroadcasted) const
+size_t nano::network::flood_vote_pr (std::shared_ptr<nano::vote> const & vote) const
 {
-	nano::confirm_ack message{ node.network_params.network, vote, rebroadcasted };
+	nano::confirm_ack message{ node.network_params.network, vote };
 
-	auto const type = rebroadcasted ? nano::transport::traffic_type::vote_rebroadcast : nano::transport::traffic_type::vote;
+	auto const type = nano::transport::traffic_type::vote;
 
 	size_t result = 0;
 	for (auto const & channel : node.rep_crawler.principal_representatives ())
