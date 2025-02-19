@@ -971,7 +971,7 @@ TEST (active_elections, fork_replacement_tally)
 	node_config.peering_port = system.get_available_port ();
 	auto & node2 (*system.add_node (node_config));
 	node1.network.filter.clear ();
-	node2.network.flood_block (send_last, nano::transport::traffic_type::test);
+	ASSERT_TRUE (node2.network.flood_block (send_last, nano::transport::traffic_type::test));
 	ASSERT_TIMELY (3s, node1.stats.count (nano::stat::type::message, nano::stat::detail::publish, nano::stat::dir::in) > 0);
 
 	// Correct block without votes is ignored
@@ -985,7 +985,7 @@ TEST (active_elections, fork_replacement_tally)
 	// ensure vote arrives before the block
 	ASSERT_TIMELY_EQ (5s, 1, node1.vote_cache.find (send_last->hash ()).size ());
 	node1.network.filter.clear ();
-	node2.network.flood_block (send_last, nano::transport::traffic_type::test);
+	ASSERT_TRUE (node2.network.flood_block (send_last, nano::transport::traffic_type::test));
 	ASSERT_TIMELY (5s, node1.stats.count (nano::stat::type::message, nano::stat::detail::publish, nano::stat::dir::in) > 1);
 
 	// the send_last block should replace one of the existing block of the election because it has higher vote weight
