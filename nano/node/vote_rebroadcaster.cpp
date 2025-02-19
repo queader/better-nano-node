@@ -113,7 +113,9 @@ void nano::vote_rebroadcaster::run ()
 
 			stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::rebroadcast);
 			stats.add (nano::stat::type::vote_rebroadcaster, nano::stat::detail::rebroadcast_hashes, vote->hashes.size ());
-			network.flood_vote (vote, 0.5f, /* rebroadcasted */ true); // TODO: Track number of peers that we sent the vote to
+
+			auto sent = network.flood_vote (vote, 0.5f, /* rebroadcasted */ true);
+			stats.add (nano::stat::type::vote_rebroadcaster, nano::stat::detail::sent, sent);
 
 			lock.lock ();
 		}
