@@ -86,7 +86,7 @@ void nano::rep_tiers::run ()
 void nano::rep_tiers::calculate_tiers ()
 {
 	auto stake = online_reps.trended ();
-	auto rep_amounts = ledger.cache.rep_weights.get_rep_amounts ();
+	auto rep_amounts = ledger.rep_weights_snapshot ();
 
 	decltype (representatives_1) representatives_1_l;
 	decltype (representatives_2) representatives_2_l;

@@ -76,7 +76,8 @@ public:
 	nano::account const & epoch_signer (nano::link const &) const;
 	nano::link const & epoch_link (nano::epoch) const;
 	bool migrate_lmdb_to_rocksdb (std::filesystem::path const &) const;
-	bool bootstrap_weight_reached () const;
+	bool bootstrap_height_reached () const;
+	std::unordered_map<nano::account, nano::uint128_t> rep_weights_snapshot () const;
 
 	static nano::epoch version (nano::block const & block);
 	nano::epoch version (secure::transaction const &, nano::block_hash const & hash) const;
@@ -104,7 +105,6 @@ public:
 
 	std::unordered_map<nano::account, nano::uint128_t> bootstrap_weights;
 	uint64_t bootstrap_weight_max_blocks{ 1 };
-	mutable std::atomic<bool> check_bootstrap_weights;
 
 	bool pruning{ false };
 

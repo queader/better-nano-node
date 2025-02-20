@@ -355,18 +355,16 @@ nano::node::node (std::shared_ptr<boost::asio::io_context> io_ctx_a, std::filesy
 		{
 			auto const bootstrap_weights = get_bootstrap_weights ();
 			ledger.bootstrap_weight_max_blocks = bootstrap_weights.first;
+			ledger.bootstrap_weights = bootstrap_weights.second;
 
 			logger.info (nano::log::type::node, "Initial bootstrap height: {}", ledger.bootstrap_weight_max_blocks);
 			logger.info (nano::log::type::node, "Current ledger height:    {}", ledger.block_count ());
 
 			// Use bootstrap weights if initial bootstrap is not completed
-			const bool use_bootstrap_weight = ledger.block_count () < bootstrap_weights.first;
+			const bool use_bootstrap_weight = !ledger.bootstrap_height_reached ();
 			if (use_bootstrap_weight)
 			{
 				logger.info (nano::log::type::node, "Using predefined representative weights, since block count is less than bootstrap threshold");
-
-				ledger.bootstrap_weights = bootstrap_weights.second;
-
 				logger.info (nano::log::type::node, "******************************************** Bootstrap weights ********************************************");
 
 				// Sort the weights
