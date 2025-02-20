@@ -50,8 +50,12 @@ public:
 	// Should we reach out to this endpoint with a keepalive message? If yes, register a new reachout attempt
 	bool track_reachout (nano::endpoint const &);
 	void purge (std::chrono::steady_clock::time_point cutoff_deadline);
+
+	using channel_filter = std::function<bool (std::shared_ptr<nano::transport::channel> const &)>;
+	std::deque<std::shared_ptr<nano::transport::channel>> list (channel_filter) const;
 	std::deque<std::shared_ptr<nano::transport::channel>> list (uint8_t minimum_version = 0) const;
 	std::unordered_set<std::shared_ptr<nano::transport::channel>> random_set (std::size_t max_count, uint8_t minimum_version = 0) const;
+
 	void keepalive ();
 	std::optional<nano::keepalive> sample_keepalive ();
 

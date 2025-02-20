@@ -247,72 +247,109 @@ void nano::network::send_keepalive_self (std::shared_ptr<nano::transport::channe
 	channel->send (message, nano::transport::traffic_type::keepalive);
 }
 
-void nano::network::flood_message (nano::message const & message, nano::transport::traffic_type type, float scale) const
+size_t nano::network::flood_message (nano::message const & message, nano::transport::traffic_type type, float scale) const
 {
-	for (auto const & channel : list (fanout (scale)))
+	auto channels = list (fanout (scale), [type] (auto const & channel) {
+		return !channel->max (type); // Only use channels that are not full for this traffic type
+	});
+	size_t result = 0;
+	for (auto const & channel : channels)
 	{
-		channel->send (message, type);
+		bool sent = channel->send (message, type);
+		result += sent;
 	}
+	return result;
 }
 
-void nano::network::flood_keepalive (float scale) const
+size_t nano::network::flood_keepalive (float scale) const
 {
 	nano::keepalive message{ node.network_params.network };
 	random_fill (message.peers);
-	flood_message (message, nano::transport::traffic_type::keepalive, scale);
+	return flood_message (message, nano::transport::traffic_type::keepalive, scale);
 }
 
-void nano::network::flood_keepalive_self (float scale) const
+size_t nano::network::flood_keepalive_self (float scale) const
 {
 	nano::keepalive message{ node.network_params.network };
 	fill_keepalive_self (message.peers);
-	flood_message (message, nano::transport::traffic_type::keepalive, scale);
+	return flood_message (message, nano::transport::traffic_type::keepalive, scale);
 }
 
-void nano::network::flood_block (std::shared_ptr<nano::block> const & block, nano::transport::traffic_type type) const
+size_t nano::network::flood_block (std::shared_ptr<nano::block> const & block, nano::transport::traffic_type type) const
 {
 	nano::publish message{ node.network_params.network, block };
-	flood_message (message, type);
+	return flood_message (message, type);
 }
 
-void nano::network::flood_block_initial (std::shared_ptr<nano::block> const & block) const
+size_t nano::network::flood_block_initial (std::shared_ptr<nano::block> const & block) const
 {
 	nano::publish message{ node.network_params.network, block, /* is_originator */ true };
+
+	size_t result = 0;
 	for (auto const & rep : node.rep_crawler.principal_representatives ())
 	{
-		rep.channel->send (message, nano::transport::traffic_type::block_broadcast_initial);
+		bool sent = rep.channel->send (message, nano::transport::traffic_type::block_broadcast_initial);
+		result += sent;
 	}
 	for (auto & peer : list_non_pr (fanout (1.0)))
 	{
-		peer->send (message, nano::transport::traffic_type::block_broadcast_initial);
+		bool sent = peer->send (message, nano::transport::traffic_type::block_broadcast_initial);
+		result += sent;
 	}
+	return result;
 }
 
-void nano::network::flood_vote (std::shared_ptr<nano::vote> const & vote, float scale, bool rebroadcasted) const
+size_t nano::network::flood_vote_rebroadcasted (std::shared_ptr<nano::vote> const & vote, float scale) const
 {
-	nano::confirm_ack message{ node.network_params.network, vote, rebroadcasted };
-	for (auto & channel : list (fanout (scale)))
+	nano::confirm_ack message{ node.network_params.network, vote, /* rebroadcasted */ true };
+
+	auto const type = nano::transport::traffic_type::vote_rebroadcast;
+
+	auto channels = list (fanout (scale), [type] (auto const & channel) {
+		return !channel->max (type); // Only use channels that are not full for this traffic type
+	});
+
+	size_t result = 0;
+	for (auto & channel : channels)
 	{
-		channel->send (message, rebroadcasted ? nano::transport::traffic_type::vote_rebroadcast : nano::transport::traffic_type::vote);
+		bool sent = channel->send (message, type);
+		result += sent;
 	}
+	return result;
 }
 
-void nano::network::flood_vote_non_pr (std::shared_ptr<nano::vote> const & vote, float scale, bool rebroadcasted) const
+size_t nano::network::flood_vote_non_pr (std::shared_ptr<nano::vote> const & vote, float scale) const
 {
-	nano::confirm_ack message{ node.network_params.network, vote, rebroadcasted };
-	for (auto & channel : list_non_pr (fanout (scale)))
+	nano::confirm_ack message{ node.network_params.network, vote };
+
+	auto const type = transport::traffic_type::vote;
+
+	auto channels = list_non_pr (fanout (scale), [type] (auto const & channel) {
+		return !channel->max (type); // Only use channels that are not full for this traffic type
+	});
+
+	size_t result = 0;
+	for (auto & channel : channels)
 	{
-		channel->send (message, rebroadcasted ? nano::transport::traffic_type::vote_rebroadcast : nano::transport::traffic_type::vote);
+		bool sent = channel->send (message, type);
+		result += sent;
 	}
+	return result;
 }
 
-void nano::network::flood_vote_pr (std::shared_ptr<nano::vote> const & vote, bool rebroadcasted) const
+size_t nano::network::flood_vote_pr (std::shared_ptr<nano::vote> const & vote) const
 {
-	nano::confirm_ack message{ node.network_params.network, vote, rebroadcasted };
+	nano::confirm_ack message{ node.network_params.network, vote };
+
+	auto const type = nano::transport::traffic_type::vote;
+
+	size_t result = 0;
 	for (auto const & channel : node.rep_crawler.principal_representatives ())
 	{
-		channel.channel->send (message, rebroadcasted ? nano::transport::traffic_type::vote_rebroadcast : nano::transport::traffic_type::vote);
+		bool sent = channel.channel->send (message, type);
+		result += sent;
 	}
+	return result;
 }
 
 void nano::network::flood_block_many (std::deque<std::shared_ptr<nano::block>> blocks, nano::transport::traffic_type type, std::chrono::milliseconds delay, std::function<void ()> callback) const
@@ -397,9 +434,9 @@ bool nano::network::track_reachout (nano::endpoint const & endpoint_a)
 	return tcp_channels.track_reachout (endpoint_a);
 }
 
-std::deque<std::shared_ptr<nano::transport::channel>> nano::network::list (std::size_t max_count, uint8_t minimum_version) const
+std::deque<std::shared_ptr<nano::transport::channel>> nano::network::list (std::size_t max_count, channel_filter filter) const
 {
-	auto result = tcp_channels.list (minimum_version);
+	auto result = tcp_channels.list (filter);
 	nano::random_pool_shuffle (result.begin (), result.end ()); // Randomize returned peer order
 	if (max_count > 0 && result.size () > max_count)
 	{
@@ -408,9 +445,9 @@ std::deque<std::shared_ptr<nano::transport::channel>> nano::network::list (std::
 	return result;
 }
 
-std::deque<std::shared_ptr<nano::transport::channel>> nano::network::list_non_pr (std::size_t max_count, uint8_t minimum_version) const
+std::deque<std::shared_ptr<nano::transport::channel>> nano::network::list_non_pr (std::size_t max_count, channel_filter filter) const
 {
-	auto result = tcp_channels.list (minimum_version);
+	auto result = tcp_channels.list (filter);
 
 	auto partition_point = std::partition (result.begin (), result.end (),
 	[this] (std::shared_ptr<nano::transport::channel> const & channel) {
@@ -425,6 +462,16 @@ std::deque<std::shared_ptr<nano::transport::channel>> nano::network::list_non_pr
 		result.resize (max_count, nullptr);
 	}
 	return result;
+}
+
+std::deque<std::shared_ptr<nano::transport::channel>> nano::network::list (std::size_t max_count, uint8_t minimum_version) const
+{
+	return list (max_count, [minimum_version] (auto const & channel) { return channel->get_network_version () >= minimum_version; });
+}
+
+std::deque<std::shared_ptr<nano::transport::channel>> nano::network::list_non_pr (std::size_t max_count, uint8_t minimum_version) const
+{
+	return list_non_pr (max_count, [minimum_version] (auto const & channel) { return channel->get_network_version () >= minimum_version; });
 }
 
 // Simulating with sqrt_broadcast_simulate shows we only need to broadcast to sqrt(total_peers) random peers in order to successfully publish to everyone with high probability
