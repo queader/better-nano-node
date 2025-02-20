@@ -36,11 +36,9 @@ nano::node_config::node_config (const std::optional<uint16_t> & peering_port_a, 
 	external_address{ boost::asio::ip::address_v6{}.to_string () },
 	rep_crawler{ network_params.network },
 	active_elections{ network_params.network },
-	block_processor{ network_params.network },
 	peer_history{ network_params.network },
 	tcp{ network_params.network },
-	network{ network_params.network },
-	local_block_broadcaster{ network_params.network }
+	network{ network_params.network }
 {
 	if (peering_port == 0)
 	{

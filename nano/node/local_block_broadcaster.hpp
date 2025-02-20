@@ -26,15 +26,6 @@ namespace nano
 class local_block_broadcaster_config final
 {
 public:
-	explicit local_block_broadcaster_config (nano::network_constants const & network)
-	{
-		if (network.is_dev_network ())
-		{
-			rebroadcast_interval = 1s;
-			cleanup_interval = 1s;
-		}
-	}
-
 	// TODO: Serialization & deserialization
 
 public:
@@ -44,6 +35,16 @@ public:
 	std::size_t broadcast_rate_limit{ 32 };
 	double broadcast_rate_burst_ratio{ 3 };
 	std::chrono::seconds cleanup_interval{ 60 };
+
+public:
+	local_block_broadcaster_config ()
+	{
+		if (nano::is_dev_run ())
+		{
+			rebroadcast_interval = 1s;
+			cleanup_interval = 1s;
+		}
+	}
 };
 
 /**

@@ -36,6 +36,15 @@ public:
 	std::size_t max_size{ 1024 * 64 };
 	std::size_t max_voters{ 64 };
 	std::chrono::seconds age_cutoff{ 15 * 60 };
+
+public:
+	vote_cache_config ()
+	{
+		if (nano::is_dev_run ())
+		{
+			age_cutoff = 1s;
+		}
+	}
 };
 
 /**

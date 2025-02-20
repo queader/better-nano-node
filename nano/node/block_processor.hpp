@@ -19,8 +19,6 @@ namespace nano
 class block_processor_config final
 {
 public:
-	explicit block_processor_config (nano::network_constants const &);
-
 	nano::error deserialize (nano::tomlconfig & toml);
 	nano::error serialize (nano::tomlconfig & toml) const;
 
@@ -37,6 +35,15 @@ public:
 	size_t priority_bootstrap{ 8 };
 	size_t priority_local{ 16 };
 	size_t priority_system{ 32 };
+
+public:
+	block_processor_config ()
+	{
+		if (nano::is_dev_run ()) // Reduce batch sizes for tests
+		{
+			batch_size = 2;
+		}
+	}
 };
 
 /**

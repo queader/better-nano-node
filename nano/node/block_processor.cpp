@@ -448,10 +448,6 @@ nano::container_info nano::block_processor::container_info () const
  * block_processor_config
  */
 
-nano::block_processor_config::block_processor_config (const nano::network_constants & network_constants)
-{
-}
-
 nano::error nano::block_processor_config::serialize (nano::tomlconfig & toml) const
 {
 	toml.put ("max_peer_queue", max_peer_queue, "Maximum number of blocks to queue from network peers. \ntype:uint64");

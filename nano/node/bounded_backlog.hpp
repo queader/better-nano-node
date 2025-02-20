@@ -102,6 +102,15 @@ public:
 	bool enable{ true };
 	size_t batch_size{ 32 };
 	size_t scan_rate{ 64 };
+
+public:
+	bounded_backlog_config ()
+	{
+		if (nano::is_dev_run ()) // Reduce batch sizes for tests
+		{
+			batch_size = 2;
+		}
+	}
 };
 
 class bounded_backlog

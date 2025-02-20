@@ -96,7 +96,7 @@ void nano::vote_rebroadcaster::run ()
 
 		stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::loop);
 
-		if (refresh_interval.elapse (15s))
+		if (refresh_interval.elapse (nano::is_dev_run () ? 1s : 15s))
 		{
 			stats.inc (nano::stat::type::vote_rebroadcaster, nano::stat::detail::refresh);
 

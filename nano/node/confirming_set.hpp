@@ -41,6 +41,17 @@ public:
 	size_t max_deferred{ 16 * 1024 };
 	/** Max age of deferred blocks before they are dropped */
 	std::chrono::seconds deferred_age_cutoff{ 15min };
+
+public:
+	confirming_set_config ()
+	{
+		if (nano::is_dev_run ()) // Reduce batch sizes for tests
+		{
+			batch_size = 2;
+			max_blocks = 4;
+			max_queued_notifications = 2;
+		}
+	}
 };
 
 /**

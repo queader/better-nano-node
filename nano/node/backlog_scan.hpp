@@ -27,6 +27,15 @@ public:
 	size_t rate_limit{ 10000 };
 	/** Number of accounts per second to process. */
 	size_t batch_size{ 1000 };
+
+public:
+	backlog_scan_config ()
+	{
+		if (nano::is_dev_run ()) // Reduce batch sizes for tests
+		{
+			batch_size = 2;
+		}
+	}
 };
 
 class backlog_scan final

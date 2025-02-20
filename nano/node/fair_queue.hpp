@@ -144,7 +144,7 @@ public:
 	/**
 	 * Should be called periodically to clean up stale channels and update queue priorities and max sizes
 	 */
-	bool periodic_update (std::chrono::milliseconds interval = std::chrono::milliseconds{ 1000 * 30 })
+	bool periodic_update (std::chrono::milliseconds interval = std::chrono::milliseconds{ nano::is_dev_run () ? 500 : 1000 * 30 })
 	{
 		if (elapsed (last_update, interval))
 		{
